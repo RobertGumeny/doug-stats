@@ -1,0 +1,18 @@
+epic:
+  id: "EPIC-1"
+  name: "First Epic"
+  tasks:
+    - id: "EPIC-1-001"
+      type: "feature"
+      status: "TODO"
+      description: "Implement the first feature of the project."
+      acceptance_criteria:
+        - "The feature is implemented and all related tests pass"
+        - "Code follows the project's conventions and style guidelines"
+    - id: "EPIC-1-002"
+      type: "feature"
+      status: "TODO"
+      description: "Implement the second feature of the project."
+      acceptance_criteria:
+        - "The feature is implemented and all related tests pass"
+        - "All acceptance criteria have been verified end-to-end"
