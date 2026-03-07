@@ -41,6 +41,19 @@ func TestRegistry_FiveGeminiModels(t *testing.T) {
 	}
 }
 
+func TestRegistry_ThreeCodexModels(t *testing.T) {
+	expected := []string{
+		"gpt-5-codex",
+		"gpt-5.1-codex",
+		"codex-mini-latest",
+	}
+	for _, model := range expected {
+		if _, ok := Registry[model]; !ok {
+			t.Errorf("model %q missing from Registry", model)
+		}
+	}
+}
+
 func TestRegistry_GeminiAndCodexFields(t *testing.T) {
 	// ModelPricing struct must have both fields (compile-time check via literal).
 	_ = ModelPricing{
@@ -148,6 +161,23 @@ func TestCompute_GeminiCachedThoughtsToolRates(t *testing.T) {
 	}
 	if cost.USD != 5.675 {
 		t.Errorf("got %v, want 5.675", cost.USD)
+	}
+}
+
+func TestCompute_CodexRates(t *testing.T) {
+	// gpt-5-codex: input=1.25, cache-read=0.125, output=10.00, thoughts->output
+	tokens := provider.TokenCounts{
+		Input:     1_000_000,
+		CacheRead: 1_000_000,
+		Output:    1_000_000,
+		Thoughts:  1_000_000,
+	}
+	cost := Compute("gpt-5-codex", tokens)
+	if cost.Unknown {
+		t.Fatal("expected known cost")
+	}
+	if cost.USD != 21.375 {
+		t.Errorf("got %v, want 21.375", cost.USD)
 	}
 }
 

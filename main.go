@@ -20,6 +20,7 @@ import (
 	"github.com/robertgumeny/doug-stats/api"
 	"github.com/robertgumeny/doug-stats/provider"
 	claudeprovider "github.com/robertgumeny/doug-stats/provider/claude"
+	codexprovider "github.com/robertgumeny/doug-stats/provider/codex"
 	geminiprovider "github.com/robertgumeny/doug-stats/provider/gemini"
 )
 
@@ -127,6 +128,15 @@ func main() {
 			providerMap[p.Name()] = p
 		case ".gemini":
 			p := geminiprovider.New(dir)
+			sessions, err := p.LoadSessions()
+			if err != nil {
+				log.Printf("warning: %s: LoadSessions: %v", base, err)
+				continue
+			}
+			allSessions = append(allSessions, sessions...)
+			providerMap[p.Name()] = p
+		case ".codex":
+			p := codexprovider.New(dir)
 			sessions, err := p.LoadSessions()
 			if err != nil {
 				log.Printf("warning: %s: LoadSessions: %v", base, err)

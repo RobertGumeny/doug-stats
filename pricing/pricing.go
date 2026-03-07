@@ -77,6 +77,23 @@ var Registry = map[string]ModelPricing{
 		OutputPerMToken:        4.00,
 	},
 
+	// Codex family
+	"gpt-5-codex": {
+		InputPerMToken:     1.25,
+		CacheReadPerMToken: 0.125,
+		OutputPerMToken:    10.00,
+	},
+	"gpt-5.1-codex": {
+		InputPerMToken:     1.25,
+		CacheReadPerMToken: 0.125,
+		OutputPerMToken:    10.00,
+	},
+	"codex-mini-latest": {
+		InputPerMToken:     1.50,
+		CacheReadPerMToken: 0.375,
+		OutputPerMToken:    6.00,
+	},
+
 	// Gemini family
 	"gemini-2.5-pro": {
 		InputPerMToken:              1.25,
@@ -145,6 +162,9 @@ func Compute(model string, tokens provider.TokenCounts) Cost {
 	thoughtRate := p.ThoughtsPerMToken
 	if thoughtRate == 0 {
 		thoughtRate = p.OutputPerMToken
+	}
+	if p.CodexReasoningPerMToken > 0 {
+		thoughtRate += p.CodexReasoningPerMToken
 	}
 	toolRate := p.ToolPerMToken
 	if toolRate == 0 {
