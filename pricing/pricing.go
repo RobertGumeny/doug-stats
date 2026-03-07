@@ -4,6 +4,10 @@
 // sliding window. CacheRead tokens are charged at the cache-read rate only
 // when the cache hit occurs within this 5-minute tier. This assumption is
 // returned as metadata (CacheTierMinutes = 5) for UI display.
+//
+// Gemini cached-token assumption: Gemini logs expose a single "cached" token
+// count. We charge all cached tokens at the read-rate only
+// (GeminiSingleCachedPerMToken) because no cache-write breakdown is available.
 package pricing
 
 import (
@@ -24,6 +28,8 @@ type ModelPricing struct {
 	CacheCreationPerMToken float64 // USD per 1M cache-write tokens
 	CacheReadPerMToken     float64 // USD per 1M cache-read tokens
 	OutputPerMToken        float64 // USD per 1M output tokens
+	ThoughtsPerMToken      float64 // USD per 1M reasoning/thought tokens
+	ToolPerMToken          float64 // USD per 1M tool-call tokens
 
 	// GeminiSingleCachedPerMToken is the flat cached-token rate for Gemini
 	// models. Zero for non-Gemini models.
@@ -70,6 +76,43 @@ var Registry = map[string]ModelPricing{
 		CacheReadPerMToken:     0.08,
 		OutputPerMToken:        4.00,
 	},
+
+	// Gemini family
+	"gemini-2.5-pro": {
+		InputPerMToken:              1.25,
+		OutputPerMToken:             10.00,
+		GeminiSingleCachedPerMToken: 0.31,
+		ThoughtsPerMToken:           10.00,
+		ToolPerMToken:               1.25,
+	},
+	"gemini-2.5-flash": {
+		InputPerMToken:              0.30,
+		OutputPerMToken:             2.50,
+		GeminiSingleCachedPerMToken: 0.075,
+		ThoughtsPerMToken:           2.50,
+		ToolPerMToken:               0.30,
+	},
+	"gemini-2.5-flash-lite": {
+		InputPerMToken:              0.10,
+		OutputPerMToken:             0.40,
+		GeminiSingleCachedPerMToken: 0.025,
+		ThoughtsPerMToken:           0.40,
+		ToolPerMToken:               0.10,
+	},
+	"gemini-2.0-flash": {
+		InputPerMToken:              0.10,
+		OutputPerMToken:             0.40,
+		GeminiSingleCachedPerMToken: 0.025,
+		ThoughtsPerMToken:           0.40,
+		ToolPerMToken:               0.10,
+	},
+	"gemini-3-flash-preview": {
+		InputPerMToken:              0.30,
+		OutputPerMToken:             2.50,
+		GeminiSingleCachedPerMToken: 0.075,
+		ThoughtsPerMToken:           2.50,
+		ToolPerMToken:               0.30,
+	},
 }
 
 // Cost is the computed USD cost for a set of token counts.
@@ -95,9 +138,23 @@ func Compute(model string, tokens provider.TokenCounts) Cost {
 	if !ok {
 		return Cost{Unknown: true}
 	}
+	cacheReadRate := p.CacheReadPerMToken
+	if p.GeminiSingleCachedPerMToken > 0 {
+		cacheReadRate = p.GeminiSingleCachedPerMToken
+	}
+	thoughtRate := p.ThoughtsPerMToken
+	if thoughtRate == 0 {
+		thoughtRate = p.OutputPerMToken
+	}
+	toolRate := p.ToolPerMToken
+	if toolRate == 0 {
+		toolRate = p.InputPerMToken
+	}
 	usd := (float64(tokens.Input)*p.InputPerMToken +
 		float64(tokens.CacheCreation)*p.CacheCreationPerMToken +
-		float64(tokens.CacheRead)*p.CacheReadPerMToken +
-		float64(tokens.Output)*p.OutputPerMToken) / 1_000_000
+		float64(tokens.CacheRead)*cacheReadRate +
+		float64(tokens.Output)*p.OutputPerMToken +
+		float64(tokens.Thoughts)*thoughtRate +
+		float64(tokens.Tool)*toolRate) / 1_000_000
 	return Cost{USD: math.Round(usd*10000) / 10000}
 }

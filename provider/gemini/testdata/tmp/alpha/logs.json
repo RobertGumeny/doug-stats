@@ -1,0 +1,23 @@
+[
+  {
+    "sessionId": "aaaaaaaa-1111-2222-3333-444444444444",
+    "messageId": 0,
+    "type": "user",
+    "message": "[DOUG_TASK_ID: EPIC-3-001] run task",
+    "timestamp": "2026-03-06T10:00:00Z"
+  },
+  {
+    "sessionId": "bbbbbbbb-1111-2222-3333-444444444444",
+    "messageId": 0,
+    "type": "user",
+    "message": "manual prompt",
+    "timestamp": "2026-03-06T11:00:00Z"
+  },
+  {
+    "sessionId": "aaaaaaaa-1111-2222-3333-444444444444",
+    "messageId": 1,
+    "type": "user",
+    "message": "follow up",
+    "timestamp": "2026-03-06T10:02:00Z"
+  }
+]

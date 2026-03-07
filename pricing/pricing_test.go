@@ -21,8 +21,23 @@ func TestRegistry_FiveClaudeModels(t *testing.T) {
 			t.Errorf("model %q missing from Registry", model)
 		}
 	}
-	if len(Registry) != len(expected) {
-		t.Errorf("Registry has %d entries, want %d", len(Registry), len(expected))
+	if len(Registry) < len(expected) {
+		t.Errorf("Registry has %d entries, want at least %d", len(Registry), len(expected))
+	}
+}
+
+func TestRegistry_FiveGeminiModels(t *testing.T) {
+	expected := []string{
+		"gemini-2.5-pro",
+		"gemini-2.5-flash",
+		"gemini-2.5-flash-lite",
+		"gemini-2.0-flash",
+		"gemini-3-flash-preview",
+	}
+	for _, model := range expected {
+		if _, ok := Registry[model]; !ok {
+			t.Errorf("model %q missing from Registry", model)
+		}
 	}
 }
 
@@ -114,6 +129,25 @@ func TestCompute_RoundingTo4DecimalPlaces(t *testing.T) {
 	rounded := float64(int64(cost.USD*10000+0.5)) / 10000
 	if cost.USD != rounded {
 		t.Errorf("cost %v is not rounded to 4 decimal places", cost.USD)
+	}
+}
+
+func TestCompute_GeminiCachedThoughtsToolRates(t *testing.T) {
+	// gemini-2.5-flash rates:
+	// input=0.30, output=2.50, cached=0.075, thoughts=2.50, tool=0.30
+	tokens := provider.TokenCounts{
+		Input:     1_000_000,
+		Output:    1_000_000,
+		CacheRead: 1_000_000,
+		Thoughts:  1_000_000,
+		Tool:      1_000_000,
+	}
+	cost := Compute("gemini-2.5-flash", tokens)
+	if cost.Unknown {
+		t.Fatal("expected known cost")
+	}
+	if cost.USD != 5.675 {
+		t.Errorf("got %v, want 5.675", cost.USD)
 	}
 }
 

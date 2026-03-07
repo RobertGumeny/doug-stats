@@ -1,0 +1,29 @@
+{
+  "sessionId": "bbbbbbbb-1111-2222-3333-444444444444",
+  "projectHash": "hash-alpha",
+  "startTime": "2026-03-06T11:00:00Z",
+  "lastUpdated": "2026-03-06T11:01:00Z",
+  "messages": [
+    {
+      "id": "u-b1",
+      "timestamp": "2026-03-06T11:00:00Z",
+      "type": "user",
+      "content": [{"text": "manual prompt only"}]
+    },
+    {
+      "id": "g-b1",
+      "timestamp": "2026-03-06T11:00:01Z",
+      "type": "gemini",
+      "content": "manual response",
+      "tokens": {
+        "input": 10,
+        "output": 4,
+        "cached": 3,
+        "thoughts": 1,
+        "tool": 2,
+        "total": 20
+      },
+      "model": "gemini-2.5-flash"
+    }
+  ]
+}

@@ -14,12 +14,14 @@ const (
 	ClassUntagged                     // no identifiable user messages
 )
 
-// TokenCounts holds the four Claude token types.
+// TokenCounts holds normalized token categories across providers.
 type TokenCounts struct {
 	Input         int64
 	CacheCreation int64
 	CacheRead     int64
 	Output        int64
+	Thoughts      int64
+	Tool          int64
 }
 
 // SessionMeta contains the Phase 1 index data for a session.

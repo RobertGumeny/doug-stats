@@ -1,0 +1,23 @@
+{
+  "sessionId": "cccccccc-1111-2222-3333-444444444444",
+  "projectHash": "hash-beta",
+  "startTime": "2026-03-06T12:00:00Z",
+  "lastUpdated": "2026-03-06T12:03:00Z",
+  "messages": [
+    {
+      "id": "g-c1",
+      "timestamp": "2026-03-06T12:00:01Z",
+      "type": "gemini",
+      "content": "assistant-only session",
+      "tokens": {
+        "input": 5,
+        "output": 6,
+        "cached": 0,
+        "thoughts": 2,
+        "tool": 1,
+        "total": 14
+      },
+      "model": "gemini-2.5-pro"
+    }
+  ]
+}

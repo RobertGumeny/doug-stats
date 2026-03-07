@@ -53,7 +53,8 @@ interface MessageItem {
 type View = 'connecting' | 'projects' | 'tasks' | 'sessions' | 'transcript'
 
 const KNOWN_PROVIDERS = ['claude', 'gemini', 'codex']
-const CACHE_TIER_NOTE = 'Cost assumes the 5-minute cache-read pricing tier for cache_read tokens.'
+const CACHE_TIER_NOTE =
+  'Cost assumes Claude cache_read tokens use the 5-minute cache tier, and Gemini cached tokens are charged at read-rate only.'
 
 function CostBadge({ cost_usd, unknown }: { cost_usd: number; unknown: boolean }) {
   return (

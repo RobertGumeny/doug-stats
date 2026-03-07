@@ -1,0 +1,13 @@
+{
+  "sessionId": "zzzzzzzz-1111-2222-3333-444444444444",
+  "projectHash": "hash-alpha",
+  "startTime": "2026-03-06T15:00:00Z",
+  "messages": [
+    {
+      "id": "u-z1",
+      "timestamp": "2026-03-06T15:00:00Z",
+      "type": "user",
+      "content": [{"text": "orphan chat should never be discovered"}]
+    }
+  ]
+}

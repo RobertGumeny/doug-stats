@@ -20,6 +20,7 @@ import (
 	"github.com/robertgumeny/doug-stats/api"
 	"github.com/robertgumeny/doug-stats/provider"
 	claudeprovider "github.com/robertgumeny/doug-stats/provider/claude"
+	geminiprovider "github.com/robertgumeny/doug-stats/provider/gemini"
 )
 
 //go:embed all:frontend/dist
@@ -117,6 +118,15 @@ func main() {
 		switch base {
 		case ".claude":
 			p := claudeprovider.New(dir)
+			sessions, err := p.LoadSessions()
+			if err != nil {
+				log.Printf("warning: %s: LoadSessions: %v", base, err)
+				continue
+			}
+			allSessions = append(allSessions, sessions...)
+			providerMap[p.Name()] = p
+		case ".gemini":
+			p := geminiprovider.New(dir)
 			sessions, err := p.LoadSessions()
 			if err != nil {
 				log.Printf("warning: %s: LoadSessions: %v", base, err)
