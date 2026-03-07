@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added multi-provider end-to-end API test coverage (Claude/Gemini/Codex), expanded provider query test coverage, and added README documenting supported providers, --logs-dir, and current limitations.
 - Implemented Codex provider ingestion via state_5.sqlite threads index with rollout-path JSONL parsing, token correlation, pricing, and startup integration.
 - Added Gemini provider ingestion/parsing with logs.json-first discovery, Gemini token pricing support, and startup/API integration alongside Claude.
 - Added React session list and transcript views with breadcrumb navigation, API-backed session/message loading, collapsed tool-use blocks, inline per-turn cost, and cache-tier cost assumption note.

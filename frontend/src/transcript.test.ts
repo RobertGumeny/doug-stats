@@ -14,14 +14,14 @@ describe('buildQuery', () => {
     expect(buildQuery({})).toBe('')
   })
 
-  it('encodes provider, project, and doug-only filters', () => {
+  it('encodes all provider filters, project, and doug-only', () => {
     expect(
       buildQuery({
-        provider: ['claude', 'gemini'],
+        provider: ['claude', 'gemini', 'codex'],
         doug_only: true,
         project: '/tmp/my repo',
       }),
-    ).toBe('?provider=claude&provider=gemini&doug_only=true&project=%2Ftmp%2Fmy%20repo')
+    ).toBe('?provider=claude&provider=gemini&provider=codex&doug_only=true&project=%2Ftmp%2Fmy%20repo')
   })
 })
 

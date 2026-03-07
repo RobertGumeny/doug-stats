@@ -53,6 +53,18 @@ func buildHandler(sessions []*provider.SessionMeta, prov provider.Provider) *Han
 	return New(sessions, summary, providers)
 }
 
+func buildHandlerWithProviders(sessions []*provider.SessionMeta, provs ...provider.Provider) *Handler {
+	summary := aggregator.Aggregate(sessions)
+	providers := map[string]provider.Provider{}
+	for _, prov := range provs {
+		if prov == nil {
+			continue
+		}
+		providers[prov.Name()] = prov
+	}
+	return New(sessions, summary, providers)
+}
+
 func doGet(h *Handler, path string) *httptest.ResponseRecorder {
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -495,4 +507,250 @@ func TestErrorEnvelope(t *testing.T) {
 	if _, ok := resp["error"]; !ok {
 		t.Error("want error key in error response")
 	}
+}
+
+func TestE2E_MultiProvider_ProjectAggregateIncludesAllProviders(t *testing.T) {
+	sessions := []*provider.SessionMeta{
+		{
+			ID:          "claude-s1",
+			Provider:    "claude",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-CLAUDE",
+			Model:       "claude-sonnet-4-6",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Output: 1_000_000}, // $15.0
+		},
+		{
+			ID:          "gemini-s1",
+			Provider:    "gemini",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-GEMINI",
+			Model:       "gemini-2.5-flash",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Input: 1_000_000}, // $0.3
+		},
+		{
+			ID:          "codex-s1",
+			Provider:    "codex",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-CODEX",
+			Model:       "gpt-5-codex",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Output: 1_000_000}, // $10.0
+		},
+	}
+	h := buildHandler(sessions, nil)
+	w := doGet(h, "/api/projects")
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+
+	var items []ProjectItem
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("want 1 project, got %d", len(items))
+	}
+	if items[0].Path != "/proj/all" {
+		t.Fatalf("project path = %q, want /proj/all", items[0].Path)
+	}
+	if items[0].Unknown {
+		t.Fatal("expected known aggregate cost")
+	}
+	if items[0].CostUSD != 25.3 {
+		t.Fatalf("aggregate cost = %v, want 25.3", items[0].CostUSD)
+	}
+}
+
+func TestE2E_MultiProvider_ProviderFilterCombinations(t *testing.T) {
+	sessions := []*provider.SessionMeta{
+		{
+			ID:          "claude-s1",
+			Provider:    "claude",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-CLAUDE",
+			Model:       "claude-sonnet-4-6",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Output: 1_000_000}, // $15.0
+		},
+		{
+			ID:          "gemini-s1",
+			Provider:    "gemini",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-GEMINI",
+			Model:       "gemini-2.5-flash",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Input: 1_000_000}, // $0.3
+		},
+		{
+			ID:          "codex-s1",
+			Provider:    "codex",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-CODEX",
+			Model:       "gpt-5-codex",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Output: 1_000_000}, // $10.0
+		},
+	}
+	h := buildHandler(sessions, nil)
+
+	assertSingleProjectCost := func(path string, want float64) {
+		t.Helper()
+		w := doGet(h, path)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: want 200, got %d", path, w.Code)
+		}
+		var items []ProjectItem
+		if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+			t.Fatalf("%s: unmarshal: %v", path, err)
+		}
+		if len(items) != 1 {
+			t.Fatalf("%s: want 1 project, got %d", path, len(items))
+		}
+		if items[0].CostUSD != want {
+			t.Fatalf("%s: cost = %v, want %v", path, items[0].CostUSD, want)
+		}
+	}
+
+	assertSingleProjectCost("/api/projects?provider=claude", 15.0)
+	assertSingleProjectCost("/api/projects?provider=gemini", 0.3)
+	assertSingleProjectCost("/api/projects?provider=codex", 10.0)
+	assertSingleProjectCost("/api/projects?provider=claude&provider=codex", 25.0)
+}
+
+func TestE2E_MultiProvider_PerSessionCostRepresentativePerProvider(t *testing.T) {
+	sessions := []*provider.SessionMeta{
+		{
+			ID:          "claude-s1",
+			Provider:    "claude",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-CLAUDE",
+			Model:       "claude-sonnet-4-6",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Output: 1_000_000}, // $15.0
+		},
+		{
+			ID:          "gemini-s1",
+			Provider:    "gemini",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-GEMINI",
+			Model:       "gemini-2.5-flash",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Input: 1_000_000}, // $0.3
+		},
+		{
+			ID:          "codex-s1",
+			Provider:    "codex",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-CODEX",
+			Model:       "gpt-5-codex",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Output: 1_000_000}, // $10.0
+		},
+	}
+	h := buildHandler(sessions, nil)
+
+	checkSessionCost := func(taskID string, want float64, wantProvider string) {
+		t.Helper()
+		w := doGet(h, "/api/sessions?task="+taskID)
+		if w.Code != http.StatusOK {
+			t.Fatalf("task=%s: want 200, got %d", taskID, w.Code)
+		}
+		var items []SessionItem
+		if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+			t.Fatalf("task=%s: unmarshal: %v", taskID, err)
+		}
+		if len(items) != 1 {
+			t.Fatalf("task=%s: want 1 session, got %d", taskID, len(items))
+		}
+		if items[0].Provider != wantProvider {
+			t.Fatalf("task=%s: provider=%q, want %q", taskID, items[0].Provider, wantProvider)
+		}
+		if items[0].CostUSD != want {
+			t.Fatalf("task=%s: cost=%v, want %v", taskID, items[0].CostUSD, want)
+		}
+	}
+
+	checkSessionCost("T-CLAUDE", 15.0, "claude")
+	checkSessionCost("T-GEMINI", 0.3, "gemini")
+	checkSessionCost("T-CODEX", 10.0, "codex")
+}
+
+func TestE2E_MultiProvider_TranscriptViewWorksForEachProvider(t *testing.T) {
+	claudeTranscript := &provider.Transcript{
+		SessionID: "claude-s1",
+		Messages: []provider.Message{
+			{UUID: "claude-u1", Role: "user", Content: []provider.ContentPart{{Type: "text", Raw: json.RawMessage(`"hello"`)}}, Timestamp: time.Now()},
+		},
+	}
+	geminiTranscript := &provider.Transcript{
+		SessionID: "gemini-s1",
+		Messages: []provider.Message{
+			{UUID: "gemini-a1", Role: "assistant", Model: "gemini-2.5-flash", Tokens: &provider.TokenCounts{Input: 1, Output: 1}, Content: []provider.ContentPart{{Type: "text", Raw: json.RawMessage(`"ok"`)}}, Timestamp: time.Now()},
+		},
+	}
+	codexTranscript := &provider.Transcript{
+		SessionID: "codex-s1",
+		Messages: []provider.Message{
+			{UUID: "codex-a1", Role: "assistant", Model: "gpt-5-codex", Tokens: &provider.TokenCounts{Input: 1, Output: 1}, Content: []provider.ContentPart{{Type: "text", Raw: json.RawMessage(`"done"`)}}, Timestamp: time.Now()},
+		},
+	}
+
+	claudeProv := &mockProvider{name: "claude", transcript: claudeTranscript}
+	geminiProv := &mockProvider{name: "gemini", transcript: geminiTranscript}
+	codexProv := &mockProvider{name: "codex", transcript: codexTranscript}
+
+	sessions := []*provider.SessionMeta{
+		{
+			ID:          "claude-s1",
+			Provider:    "claude",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-CLAUDE",
+			Model:       "claude-sonnet-4-6",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Output: 1_000_000},
+		},
+		{
+			ID:          "gemini-s1",
+			Provider:    "gemini",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-GEMINI",
+			Model:       "gemini-2.5-flash",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Input: 1_000_000},
+		},
+		{
+			ID:          "codex-s1",
+			Provider:    "codex",
+			ProjectPath: "/proj/all",
+			TaskID:      "T-CODEX",
+			Model:       "gpt-5-codex",
+			Class:       provider.ClassDoug,
+			Tokens:      provider.TokenCounts{Output: 1_000_000},
+		},
+	}
+	h := buildHandlerWithProviders(sessions, claudeProv, geminiProv, codexProv)
+
+	checkTranscript := func(sessionID, wantUUID string) {
+		t.Helper()
+		w := doGet(h, "/api/sessions/"+sessionID+"/messages")
+		if w.Code != http.StatusOK {
+			t.Fatalf("session=%s: want 200, got %d", sessionID, w.Code)
+		}
+		var items []MessageItem
+		if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+			t.Fatalf("session=%s: unmarshal: %v", sessionID, err)
+		}
+		if len(items) != 1 {
+			t.Fatalf("session=%s: want 1 message, got %d", sessionID, len(items))
+		}
+		if items[0].UUID != wantUUID {
+			t.Fatalf("session=%s: uuid=%q, want %q", sessionID, items[0].UUID, wantUUID)
+		}
+	}
+
+	checkTranscript("claude-s1", "claude-u1")
+	checkTranscript("gemini-s1", "gemini-a1")
+	checkTranscript("codex-s1", "codex-a1")
 }
