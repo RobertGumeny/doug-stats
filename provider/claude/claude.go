@@ -187,6 +187,7 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath string, startTime ti
 	var (
 		totals     provider.TokenCounts
 		taskID     string
+		model      string
 		class      = provider.ClassUntagged
 		hasUserMsg bool
 		seenMsgIDs = make(map[string]bool)
@@ -221,6 +222,9 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath string, startTime ti
 				continue
 			}
 			seenMsgIDs[am.ID] = true
+			if model == "" && am.Model != "" {
+				model = am.Model
+			}
 			if am.Usage != nil {
 				totals.Input += am.Usage.InputTokens
 				totals.CacheCreation += am.Usage.CacheCreationInputTokens
@@ -264,6 +268,7 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath string, startTime ti
 		Provider:    providerName,
 		ProjectPath: projectPath,
 		TaskID:      taskID,
+		Model:       model,
 		Class:       class,
 		StartTime:   startTime,
 		Tokens:      totals,

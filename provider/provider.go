@@ -28,6 +28,7 @@ type SessionMeta struct {
 	Provider    string
 	ProjectPath string // raw project path from the provider (e.g. "/home/user/myproject")
 	TaskID      string // empty unless Class == ClassDoug
+	Model       string // last model identifier seen in assistant messages; empty if none
 	Class       SessionClass
 	StartTime   time.Time
 	Tokens      TokenCounts

@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -14,6 +15,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/robertgumeny/doug-stats/aggregator"
+	"github.com/robertgumeny/doug-stats/provider"
+	claudeprovider "github.com/robertgumeny/doug-stats/provider/claude"
 )
 
 //go:embed all:frontend/dist
@@ -102,6 +107,30 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Phase 1: load sessions and aggregate costs for all detected providers.
+	// The HTTP server does not start until this block completes.
+	var allSessions []*provider.SessionMeta
+	for _, dir := range providerDirs {
+		base := filepath.Base(dir)
+		switch base {
+		case ".claude":
+			p := claudeprovider.New(dir)
+			sessions, err := p.LoadSessions()
+			if err != nil {
+				log.Printf("warning: %s: LoadSessions: %v", base, err)
+				continue
+			}
+			allSessions = append(allSessions, sessions...)
+		default:
+			log.Printf("warning: no provider implementation for %s, skipping", base)
+		}
+	}
+	summary := aggregator.Aggregate(allSessions)
+	summaryJSON, err := json.Marshal(summary)
+	if err != nil {
+		log.Fatalf("failed to marshal aggregation summary: %v", err)
+	}
+
 	selectedPort, err := resolvePort(*port)
 	if err != nil {
 		log.Fatalf("failed to find available port: %v", err)
@@ -112,6 +141,10 @@ func main() {
 		log.Fatalf("failed to create sub filesystem: %v", err)
 	}
 
+	http.HandleFunc("/api/summary", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(summaryJSON)
+	})
 	http.Handle("/", http.FileServer(http.FS(distFS)))
 
 	url := fmt.Sprintf("http://localhost:%d", selectedPort)
