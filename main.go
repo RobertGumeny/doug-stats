@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/robertgumeny/doug-stats/aggregator"
+	"github.com/robertgumeny/doug-stats/api"
 	"github.com/robertgumeny/doug-stats/provider"
 	claudeprovider "github.com/robertgumeny/doug-stats/provider/claude"
 )
@@ -110,6 +111,7 @@ func main() {
 	// Phase 1: load sessions and aggregate costs for all detected providers.
 	// The HTTP server does not start until this block completes.
 	var allSessions []*provider.SessionMeta
+	providerMap := make(map[string]provider.Provider)
 	for _, dir := range providerDirs {
 		base := filepath.Base(dir)
 		switch base {
@@ -121,6 +123,7 @@ func main() {
 				continue
 			}
 			allSessions = append(allSessions, sessions...)
+			providerMap[p.Name()] = p
 		default:
 			log.Printf("warning: no provider implementation for %s, skipping", base)
 		}
@@ -141,11 +144,14 @@ func main() {
 		log.Fatalf("failed to create sub filesystem: %v", err)
 	}
 
-	http.HandleFunc("/api/summary", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/summary", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(summaryJSON)
 	})
-	http.Handle("/", http.FileServer(http.FS(distFS)))
+	apiHandler := api.New(allSessions, summary, providerMap)
+	apiHandler.Register(mux)
+	mux.Handle("/", http.FileServer(http.FS(distFS)))
 
 	url := fmt.Sprintf("http://localhost:%d", selectedPort)
 	fmt.Printf("doug-stats running at %s\n", url)
@@ -155,5 +161,5 @@ func main() {
 		openBrowser(url)
 	}()
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", selectedPort), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", selectedPort), mux))
 }

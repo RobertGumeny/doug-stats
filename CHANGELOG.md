@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Add in-memory HTTP API layer with 5 endpoints serving all frontend data
 - Add pricing registry and cost aggregation layer: ModelPricing struct with five Claude models, Cost.Add accumulation, and session/task/project aggregates computed before HTTP server start
 - Add Claude Code log scanner and parser as the reference Provider implementation with two-phase loading (session index at startup, transcripts on demand)
 
