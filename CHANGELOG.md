@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added React session list and transcript views with breadcrumb navigation, API-backed session/message loading, collapsed tool-use blocks, inline per-turn cost, and cache-tier cost assumption note.
 - Add React project list and task list views with provider filter, Doug-only toggle, breadcrumb navigation, and prominent USD cost display
 - Add in-memory HTTP API layer with 5 endpoints serving all frontend data
 - Add pricing registry and cost aggregation layer: ModelPricing struct with five Claude models, Cost.Add accumulation, and session/task/project aggregates computed before HTTP server start
