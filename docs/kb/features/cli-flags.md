@@ -5,6 +5,7 @@ category: Features
 tags: [go, cli, flags, providers]
 related_articles:
   - docs/kb/infrastructure/build-pipeline.md
+  - docs/kb/features/dashboard-project-and-task-views.md
 ---
 
 # CLI Flags & Provider Auto-Detection
@@ -60,3 +61,4 @@ var providerSubdirs = []string{".claude", ".gemini", ".codex"}
 ## Related Topics
 
 See [Build Pipeline](../infrastructure/build-pipeline.md) for how the binary is built and embedded.
+See [Dashboard Project and Task Views](./dashboard-project-and-task-views.md) for how provider selection and Doug-only filtering surface in the UI.
