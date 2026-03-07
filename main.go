@@ -2,18 +2,24 @@ package main
 
 import (
 	"embed"
+	"flag"
 	"fmt"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"os/user"
+	"path/filepath"
 	"runtime"
 	"time"
 )
 
 //go:embed all:frontend/dist
 var frontendDist embed.FS
+
+var providerSubdirs = []string{".claude", ".gemini", ".codex"}
 
 func findAvailablePort() (int, error) {
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -22,6 +28,44 @@ func findAvailablePort() (int, error) {
 	}
 	defer listener.Close()
 	return listener.Addr().(*net.TCPAddr).Port, nil
+}
+
+// resolvePort returns the requested port if available, otherwise finds a free one.
+func resolvePort(requested int) (int, error) {
+	if requested == 0 {
+		return findAvailablePort()
+	}
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", requested))
+	if err != nil {
+		log.Printf("port %d is busy, selecting next available port", requested)
+		return findAvailablePort()
+	}
+	listener.Close()
+	return requested, nil
+}
+
+// detectProviderDirs checks for known provider subdirectories under logsDir.
+// Missing subdirectories are skipped with a warning.
+func detectProviderDirs(logsDir string) []string {
+	var found []string
+	for _, sub := range providerSubdirs {
+		path := filepath.Join(logsDir, sub)
+		info, err := os.Stat(path)
+		if err != nil || !info.IsDir() {
+			log.Printf("warning: provider directory %s not found, skipping", path)
+			continue
+		}
+		found = append(found, path)
+	}
+	return found
+}
+
+func defaultLogsDir() string {
+	u, err := user.Current()
+	if err != nil {
+		return os.Getenv("HOME")
+	}
+	return u.HomeDir
 }
 
 func openBrowser(url string) {
@@ -38,7 +82,27 @@ func openBrowser(url string) {
 }
 
 func main() {
-	port, err := findAvailablePort()
+	logsDir := flag.String("logs-dir", "", "root directory to scan for provider log subdirectories (default: ~/)")
+	port := flag.Int("port", 0, "HTTP server port (auto-selected if 0 or busy)")
+	noUI := flag.Bool("no-ui", false, "disable browser launch (not yet implemented)")
+	flag.Parse()
+
+	if *noUI {
+		fmt.Println("not yet implemented")
+		os.Exit(0)
+	}
+
+	if *logsDir == "" {
+		*logsDir = defaultLogsDir()
+	}
+
+	providerDirs := detectProviderDirs(*logsDir)
+	if len(providerDirs) == 0 {
+		fmt.Fprintf(os.Stderr, "no provider log directories found under %s (looked for .claude, .gemini, .codex)\n", *logsDir)
+		os.Exit(1)
+	}
+
+	selectedPort, err := resolvePort(*port)
 	if err != nil {
 		log.Fatalf("failed to find available port: %v", err)
 	}
@@ -50,7 +114,7 @@ func main() {
 
 	http.Handle("/", http.FileServer(http.FS(distFS)))
 
-	url := fmt.Sprintf("http://localhost:%d", port)
+	url := fmt.Sprintf("http://localhost:%d", selectedPort)
 	fmt.Printf("doug-stats running at %s\n", url)
 
 	go func() {
@@ -58,5 +122,5 @@ func main() {
 		openBrowser(url)
 	}()
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", selectedPort), nil))
 }
