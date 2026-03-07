@@ -7,6 +7,7 @@ related_articles:
   - docs/kb/architecture/two-phase-session-loading.md
   - docs/kb/dependencies/model-pricing-and-aggregation.md
   - docs/kb/integration/http-api-endpoints.md
+  - docs/kb/features/dashboard-project-and-task-views.md
 ---
 
 # Claude JSONL Provider Pattern
@@ -52,3 +53,4 @@ transcript, _ := p.LoadTranscript(sessions[0].ID)
 ## Related Topics
 
 See [HTTP API Endpoints](../integration/http-api-endpoints.md) for how session class and transcript data are exposed.
+See [Dashboard Navigation and Cost Views](../features/dashboard-project-and-task-views.md) for UI handling of transcript content and tool blocks.

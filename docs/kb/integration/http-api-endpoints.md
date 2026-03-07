@@ -29,6 +29,8 @@ Behavior highlights:
 - `task=manual` is a virtual task that matches manual and untagged sessions.
 - `/api/tasks` appends a virtual `"manual"` entry when non-Doug sessions exist in the selected project (unless `doug_only=true`).
 - Errors use a stable envelope: `{"error":"..."}`.
+- Session list responses include `class` and `model` metadata for frontend filtering and labels.
+- Message responses preserve raw provider content parts while attaching computed per-turn cost fields.
 
 Only `/api/sessions/:id/messages` triggers Phase 2 transcript parsing through provider `LoadTranscript`.
 
@@ -49,7 +51,9 @@ curl '/api/tasks?project=/home/user/repo&provider=claude&doug_only=true'
 
 - Missing `project` on `/api/tasks` and missing `task` on `/api/sessions` return `400`.
 - Unknown provider name in session metadata during message lookup returns `500`.
+- `task=manual` with `doug_only=true` returns no rows by design.
 
 ## Related Topics
 
 See [Two-Phase Session Loading Architecture](../architecture/two-phase-session-loading.md) for startup sequencing guarantees.
+See [Dashboard Navigation and Cost Views](../features/dashboard-project-and-task-views.md) for endpoint consumption in the React UI.

@@ -2,10 +2,11 @@
 title: Two-Stage Build Pipeline
 updated: 2026-03-06
 category: Infrastructure
-tags: [go, react, vite, embed, makefile]
+tags: [go, react, vite, vitest, embed, makefile]
 related_articles:
   - docs/kb/infrastructure/ci-cd.md
   - docs/kb/features/cli-flags.md
+  - docs/kb/features/dashboard-project-and-task-views.md
 ---
 
 # Two-Stage Build Pipeline
@@ -21,6 +22,10 @@ doug-stats uses a two-stage build: npm builds the React frontend into `frontend/
 npm install && npm run build   # outputs to frontend/dist/
 ```
 Vite + React + TypeScript + Tailwind CSS. Entry: `frontend/src/main.tsx`.
+Frontend unit tests run with Vitest:
+```
+npm run test --prefix frontend
+```
 
 **Stage 2 — Go binary:**
 ```go
@@ -44,7 +49,9 @@ http.FileServer(http.FS(sub))
 
 - The placeholder `frontend/dist/index.html` must remain committed and not gitignored; forgetting this breaks `go test ./...` on CI without npm.
 - Running `go build` directly (without `make build`) will embed the placeholder, not the real frontend.
+- Frontend `npm run test` requires dependencies installed in `frontend/node_modules`; missing modules fail with `vitest: not found`.
 
 ## Related Topics
 
 See [CI/CD](./ci-cd.md) for how this two-stage build is replicated in GitHub Actions and goreleaser.
+See [Dashboard Navigation and Cost Views](../features/dashboard-project-and-task-views.md) for frontend functionality covered by the build.
