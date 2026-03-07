@@ -8,6 +8,8 @@ related_articles:
   - docs/kb/dependencies/model-pricing-and-aggregation.md
   - docs/kb/features/cli-flags.md
   - docs/kb/patterns/claude-jsonl-provider.md
+  - docs/kb/patterns/gemini-logs-json-provider.md
+  - docs/kb/patterns/codex-sqlite-rollout-provider.md
   - docs/kb/infrastructure/build-pipeline.md
 ---
 
@@ -59,3 +61,4 @@ Presentation:
 See [CLI Flags & Provider Auto-Detection](./cli-flags.md) for startup provider directory discovery.
 See [In-Memory HTTP API Endpoints](../integration/http-api-endpoints.md) for query/response contracts used by each view.
 See [Claude JSONL Provider Pattern](../patterns/claude-jsonl-provider.md) for transcript content shapes surfaced in the UI.
+See [Gemini logs.json Provider Pattern](../patterns/gemini-logs-json-provider.md) and [Codex SQLite + Rollout Provider Pattern](../patterns/codex-sqlite-rollout-provider.md) for provider-specific message and token extraction behavior behind the same UI.

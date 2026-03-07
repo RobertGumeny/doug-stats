@@ -6,6 +6,8 @@ tags: [http, api, filters, sessions]
 related_articles:
   - docs/kb/architecture/two-phase-session-loading.md
   - docs/kb/patterns/claude-jsonl-provider.md
+  - docs/kb/patterns/gemini-logs-json-provider.md
+  - docs/kb/patterns/codex-sqlite-rollout-provider.md
   - docs/kb/dependencies/model-pricing-and-aggregation.md
   - docs/kb/features/dashboard-project-and-task-views.md
 ---
@@ -31,6 +33,7 @@ Behavior highlights:
 - Errors use a stable envelope: `{"error":"..."}`.
 - Session list responses include `class` and `model` metadata for frontend filtering and labels.
 - Message responses preserve raw provider content parts while attaching computed per-turn cost fields.
+- Provider filters support all currently integrated providers (`claude`, `gemini`, `codex`) and can be combined.
 
 Only `/api/sessions/:id/messages` triggers Phase 2 transcript parsing through provider `LoadTranscript`.
 
@@ -40,6 +43,7 @@ Only `/api/sessions/:id/messages` triggers Phase 2 transcript parsing through pr
 - **Pure `filterSessions` helper**: Centralized filter logic across handlers and tests.
 - **Virtual manual task ID**: Preserves non-Doug usage visibility without requiring source task tags.
 - **Prefix route for message endpoint**: `/api/sessions/` captures `:id/messages` without external router deps.
+- **Provider-agnostic API contracts**: New providers are integrated without changing endpoint shapes.
 
 ## Usage Example
 

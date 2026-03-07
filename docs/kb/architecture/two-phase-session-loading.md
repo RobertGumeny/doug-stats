@@ -5,6 +5,8 @@ category: Architecture
 tags: [go, providers, startup, aggregation]
 related_articles:
   - docs/kb/patterns/claude-jsonl-provider.md
+  - docs/kb/patterns/gemini-logs-json-provider.md
+  - docs/kb/patterns/codex-sqlite-rollout-provider.md
   - docs/kb/dependencies/model-pricing-and-aggregation.md
   - docs/kb/integration/http-api-endpoints.md
   - docs/kb/features/dashboard-project-and-task-views.md
@@ -19,6 +21,11 @@ doug-stats separates data loading into two phases to keep startup deterministic 
 ## Implementation
 
 At startup, `main.go` detects provider directories, initializes available providers, calls `LoadSessions()` for each provider, then runs `aggregator.Aggregate()` on the merged session list.
+
+Phase 1 source-of-truth differs by provider:
+- Claude: `history.jsonl`
+- Gemini: `tmp/<project>/logs.json` (fallback to `chats/` only when logs index is missing)
+- Codex: `state_5.sqlite` `threads` table + referenced rollout JSONL paths
 
 The API handler receives:
 - All Phase 1 `SessionMeta` records
@@ -48,4 +55,6 @@ handler := api.New(sessions, summary, providers)
 
 ## Related Topics
 
-See [Claude JSONL Provider Pattern](../patterns/claude-jsonl-provider.md) for the concrete Phase 1/Phase 2 parser behavior.
+See [Claude JSONL Provider Pattern](../patterns/claude-jsonl-provider.md) for JSONL history-driven ingestion.
+See [Gemini logs.json Provider Pattern](../patterns/gemini-logs-json-provider.md) for project-scoped JSON transcript ingestion.
+See [Codex SQLite + Rollout Provider Pattern](../patterns/codex-sqlite-rollout-provider.md) for SQLite-indexed rollout ingestion.
