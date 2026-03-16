@@ -19,7 +19,7 @@ doug-stats uses a two-stage build: npm builds the React frontend into `frontend/
 
 **Stage 1 — Frontend:**
 ```
-npm install && npm run build   # outputs to frontend/dist/
+npm ci && npm run build   # outputs to frontend/dist/
 ```
 Vite + React + TypeScript + Tailwind CSS. Entry: `frontend/src/main.tsx`.
 Frontend unit tests run with Vitest:

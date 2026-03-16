@@ -137,3 +137,56 @@ func TestLoadTranscript_NotInIndex(t *testing.T) {
 		t.Fatal("expected error for missing session")
 	}
 }
+
+// --- canonical identity fields ---
+
+func TestLoadSessions_CanonicalIdentityFields(t *testing.T) {
+	p := New(testdataDir())
+	metas, err := p.LoadSessions()
+	if err != nil {
+		t.Fatalf("LoadSessions failed: %v", err)
+	}
+	for _, m := range metas {
+		if m.RawProjectPath == "" {
+			t.Errorf("session %s: RawProjectPath is empty", m.ID)
+		}
+		if m.CanonicalProjectID == "" {
+			t.Errorf("session %s: CanonicalProjectID is empty", m.ID)
+		}
+		if m.CanonicalProjectSource == "" {
+			t.Errorf("session %s: CanonicalProjectSource is empty", m.ID)
+		}
+		// Raw path must not be overwritten.
+		if m.RawProjectPath != m.ProjectPath {
+			t.Errorf("session %s: RawProjectPath %q != ProjectPath %q", m.ID, m.RawProjectPath, m.ProjectPath)
+		}
+	}
+}
+
+func TestLoadSessions_CrossProviderSameRepo(t *testing.T) {
+	// Two Gemini sessions pointing at the same absolute project path must
+	// produce identical CanonicalProjectIDs. This mirrors the cross-provider
+	// guarantee: any provider using resolver.Resolve with the same RawPath
+	// produces the same canonical ID.
+	p := New(testdataDir())
+	metas, err := p.LoadSessions()
+	if err != nil {
+		t.Fatalf("LoadSessions failed: %v", err)
+	}
+	byID := map[string]*provider.SessionMeta{}
+	for _, m := range metas {
+		byID[m.ID] = m
+	}
+
+	alpha1 := byID["aaaaaaaa-1111-2222-3333-444444444444"]
+	alpha2 := byID["bbbbbbbb-1111-2222-3333-444444444444"]
+	if alpha1 == nil || alpha2 == nil {
+		t.Fatal("expected both alpha sessions to be present")
+	}
+	// Both sessions have projectPath=/home/test/project-alpha; they must
+	// resolve to the same canonical ID regardless of any other metadata.
+	if alpha1.CanonicalProjectID != alpha2.CanonicalProjectID {
+		t.Errorf("same-repo sessions differ: %q vs %q",
+			alpha1.CanonicalProjectID, alpha2.CanonicalProjectID)
+	}
+}

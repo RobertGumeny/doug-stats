@@ -1,10 +1,11 @@
 ---
 title: Codex SQLite + Rollout Provider Pattern
-updated: 2026-03-06
+updated: 2026-03-16
 category: Patterns
 tags: [go, codex, sqlite, jsonl, provider]
 related_articles:
   - docs/kb/architecture/two-phase-session-loading.md
+  - docs/kb/architecture/canonical-project-identity.md
   - docs/kb/dependencies/model-pricing-and-aggregation.md
   - docs/kb/integration/http-api-endpoints.md
   - docs/kb/features/dashboard-project-and-task-views.md
@@ -23,9 +24,10 @@ The Codex provider uses `.codex/state_5.sqlite` as the only discovery index and 
 Phase 1:
 - Query `threads` in `state_5.sqlite` for `id`, `rollout_path`, `git_origin_url`, and `cwd`.
 - Resolve each rollout path directly from `rollout_path`.
-- Derive project identity from `git_origin_url` repo name, falling back to `cwd`, then transcript `session_meta` cwd when needed.
+- Derive a legacy display `projectPath` from `git_origin_url` repo name, falling back to `cwd`, then transcript `session_meta` cwd when needed.
 - Scan rollout JSONL lines to extract task IDs, assistant model, and token usage from `event_msg` `token_count.info.last_token_usage`.
 - Aggregate normalized tokens (`input`, `cached_input`, `output`, `reasoning`) into shared token counts.
+- Call `resolver.ParseDougMeta` + `resolver.Resolve` with both `GitRemoteURL` and `RawPath` (`CWD`) to populate canonical project identity fields. This supersedes the old raw-basename grouping key.
 
 Phase 2:
 - Parse rollout JSONL on demand for transcript requests.
@@ -52,9 +54,11 @@ transcript, _ := p.LoadTranscript(sessions[0].ID)
 
 - `LoadTranscript` requires prior `LoadSessions` indexing for session-to-rollout mapping.
 - Missing or schema-shifted SQLite columns in `threads` fail discovery early.
-- Project naming can differ from Claude/Gemini path-style project IDs.
+- `git_origin_url` is passed to the resolver as-is; the resolver handles HTTPS and SCP URL formats internally.
+- `CWD` from the threads table is used as the `RawPath` for the resolver, not the legacy `deriveProjectPath` output.
 
 ## Related Topics
 
+See [Canonical Project Identity](../architecture/canonical-project-identity.md) for the resolver that replaced raw-basename grouping in Codex.
 See [In-Memory HTTP API Endpoints](../integration/http-api-endpoints.md) for provider-filtered query behavior.
 See [Model Pricing Registry and Cost Aggregation](../dependencies/model-pricing-and-aggregation.md) for Codex reasoning-token pricing behavior.

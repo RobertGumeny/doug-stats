@@ -155,6 +155,51 @@ func TestLoadSessions_MalformedLinesSkipped(t *testing.T) {
 	}
 }
 
+func TestLoadSessions_CanonicalIdentityFields(t *testing.T) {
+	root := setupCodexFixture(t)
+	p := New(root)
+
+	metas, err := p.LoadSessions()
+	if err != nil {
+		t.Fatalf("LoadSessions failed: %v", err)
+	}
+
+	byID := map[string]*provider.SessionMeta{}
+	for _, m := range metas {
+		byID[m.ID] = m
+	}
+
+	doug := byID["thread-doug"]
+	if doug == nil {
+		t.Fatal("thread-doug missing")
+	}
+	// thread-doug has git_origin_url set → resolver uses git remote slug.
+	if doug.CanonicalProjectSource != provider.SourceGitRemote {
+		t.Errorf("thread-doug CanonicalProjectSource = %q, want %q",
+			doug.CanonicalProjectSource, provider.SourceGitRemote)
+	}
+	if doug.CanonicalProjectID != "project-alpha" {
+		t.Errorf("thread-doug CanonicalProjectID = %q, want project-alpha", doug.CanonicalProjectID)
+	}
+	if doug.RawProjectPath == "" {
+		t.Error("thread-doug RawProjectPath is empty")
+	}
+
+	manual := byID["thread-manual"]
+	if manual == nil {
+		t.Fatal("thread-manual missing")
+	}
+	// thread-manual has no git remote → falls back to normalized path.
+	if manual.CanonicalProjectSource != provider.SourceNormalizedPath {
+		t.Errorf("thread-manual CanonicalProjectSource = %q, want %q",
+			manual.CanonicalProjectSource, provider.SourceNormalizedPath)
+	}
+	if manual.CanonicalProjectID != "/home/test/manual-project" {
+		t.Errorf("thread-manual CanonicalProjectID = %q, want /home/test/manual-project",
+			manual.CanonicalProjectID)
+	}
+}
+
 func TestExtractSessionMetaCWD_DoubleNested(t *testing.T) {
 	raw := []byte(`{"payload":{"cwd":"/tmp/project"}}`)
 	if got := extractSessionMetaCWD(raw); got != "/tmp/project" {

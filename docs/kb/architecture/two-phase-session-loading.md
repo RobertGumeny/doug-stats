@@ -1,9 +1,10 @@
 ---
 title: Two-Phase Session Loading Architecture
-updated: 2026-03-06
+updated: 2026-03-16
 category: Architecture
 tags: [go, providers, startup, aggregation]
 related_articles:
+  - docs/kb/architecture/canonical-project-identity.md
   - docs/kb/patterns/claude-jsonl-provider.md
   - docs/kb/patterns/gemini-logs-json-provider.md
   - docs/kb/patterns/codex-sqlite-rollout-provider.md
@@ -27,8 +28,10 @@ Phase 1 source-of-truth differs by provider:
 - Gemini: `tmp/<project>/logs.json` (fallback to `chats/` only when logs index is missing)
 - Codex: `state_5.sqlite` `threads` table + referenced rollout JSONL paths
 
+Phase 1 also resolves canonical project identity via `provider/resolver` before returning each `SessionMeta`. All canonical fields (`CanonicalProjectID`, `CanonicalProjectSource`, `DisplayProjectName`) are populated and stable before aggregation runs.
+
 The API handler receives:
-- All Phase 1 `SessionMeta` records
+- All Phase 1 `SessionMeta` records (including canonical identity)
 - Precomputed session costs from `aggregator.Summary`
 - A provider map for on-demand transcript loading
 
@@ -55,6 +58,7 @@ handler := api.New(sessions, summary, providers)
 
 ## Related Topics
 
+See [Canonical Project Identity](./canonical-project-identity.md) for the resolver called during Phase 1 to populate cross-provider grouping keys.
 See [Claude JSONL Provider Pattern](../patterns/claude-jsonl-provider.md) for JSONL history-driven ingestion.
 See [Gemini logs.json Provider Pattern](../patterns/gemini-logs-json-provider.md) for project-scoped JSON transcript ingestion.
 See [Codex SQLite + Rollout Provider Pattern](../patterns/codex-sqlite-rollout-provider.md) for SQLite-indexed rollout ingestion.

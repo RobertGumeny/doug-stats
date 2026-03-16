@@ -3,7 +3,7 @@
 all: build
 
 frontend-build:
-	cd frontend && npm install && npm run build
+	cd frontend && npm ci && npm run build
 
 build: frontend-build
 	go build -o doug-stats .
