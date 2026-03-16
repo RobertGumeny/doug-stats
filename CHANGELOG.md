@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Updated /api/projects, /api/tasks, and /api/sessions to expose canonical project identity, richer aggregate metadata, and API shape coverage for EPIC-5-003.
 - Compute and store session duration during Phase 1 ingestion, and expose it as duration_ms in /api/sessions responses.
 - Updated the aggregator to group projects by CanonicalProjectID and tasks by CanonicalProjectID+TaskID, including project-scoped manual buckets and regression coverage for cross-provider merges.
 - Add Doug metadata parser that reads DOUG_PROJECT_ID and DOUG_PROJECT_NAME from the managed block in AGENTS.md and feeds them into the project resolver as the highest-priority identity source.

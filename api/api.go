@@ -9,17 +9,22 @@
 //	  → {"status":"ok"}
 //
 //	GET /api/projects[?provider=<name>&doug_only=true]
-//	  → [{"path":"...","cost_usd":1.23,"unknown":false}, ...]
+//	  → [{"canonicalProjectID":"...","displayName":"...","aliases":["..."],
+//	      "providerCoverage":["claude"],"sessionCount":1,"taskCount":1,
+//	      "totalCost":1.23,"unknownPricing":false}, ...]
 //
-//	GET /api/tasks?project=<path>[&provider=<name>&doug_only=true]
-//	  → [{"task_id":"...","cost_usd":1.23,"unknown":false}, ...]
-//	  Includes a virtual task_id "manual" for ClassManual+ClassUntagged sessions
+//	GET /api/tasks?project=<canonicalProjectID>[&provider=<name>&doug_only=true]
+//	  → [{"taskID":"...","providerCoverage":["claude"],"sessionCount":1,
+//	      "totalCost":1.23,"unknownPricing":false}, ...]
+//	  Includes a virtual taskID "manual" for ClassManual+ClassUntagged sessions
 //	  unless doug_only=true.
 //
-//	GET /api/sessions?task=<id>[&project=<path>&provider=<name>&doug_only=true]
+//	GET /api/sessions?task=<id>[&project=<canonicalProjectID>&provider=<name>&doug_only=true]
 //	  task="manual" matches ClassManual and ClassUntagged sessions.
-//	  → [{"id":"...","provider":"...","project_path":"...","task_id":"...",
-//	      "model":"...","class":"...","start_time":"...","cost_usd":1.23,"unknown":false}, ...]
+//	  → [{"id":"...","provider":"...","canonicalProjectID":"...",
+//	      "rawProjectPath":"...","taskID":"...","model":"...","class":"...",
+//	      "startTime":"...","duration":1234,"totalCost":1.23,
+//	      "unknownPricing":false}, ...]
 //
 //	GET /api/sessions/:id/messages
 //	  Performs a full JSONL parse on demand; no other endpoint reads from disk.
@@ -39,6 +44,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -57,30 +63,38 @@ type Handler struct {
 
 // ProjectItem is the response element for GET /api/projects.
 type ProjectItem struct {
-	Path    string  `json:"path"`
-	CostUSD float64 `json:"cost_usd"`
-	Unknown bool    `json:"unknown"`
+	CanonicalProjectID string   `json:"canonicalProjectID"`
+	DisplayName        string   `json:"displayName"`
+	Aliases            []string `json:"aliases"`
+	ProviderCoverage   []string `json:"providerCoverage"`
+	SessionCount       int      `json:"sessionCount"`
+	TaskCount          int      `json:"taskCount"`
+	TotalCost          float64  `json:"totalCost"`
+	UnknownPricing     bool     `json:"unknownPricing"`
 }
 
 // TaskItem is the response element for GET /api/tasks.
 type TaskItem struct {
-	TaskID  string  `json:"task_id"`
-	CostUSD float64 `json:"cost_usd"`
-	Unknown bool    `json:"unknown"`
+	TaskID           string   `json:"taskID"`
+	ProviderCoverage []string `json:"providerCoverage"`
+	SessionCount     int      `json:"sessionCount"`
+	TotalCost        float64  `json:"totalCost"`
+	UnknownPricing   bool     `json:"unknownPricing"`
 }
 
 // SessionItem is the response element for GET /api/sessions.
 type SessionItem struct {
-	ID          string    `json:"id"`
-	Provider    string    `json:"provider"`
-	ProjectPath string    `json:"project_path"`
-	TaskID      string    `json:"task_id"`
-	Model       string    `json:"model"`
-	Class       string    `json:"class"`
-	StartTime   time.Time `json:"start_time"`
-	DurationMs  *int64    `json:"duration_ms,omitempty"`
-	CostUSD     float64   `json:"cost_usd"`
-	Unknown     bool      `json:"unknown"`
+	ID                 string    `json:"id"`
+	Provider           string    `json:"provider"`
+	CanonicalProjectID string    `json:"canonicalProjectID"`
+	RawProjectPath     string    `json:"rawProjectPath"`
+	TaskID             string    `json:"taskID"`
+	Model              string    `json:"model"`
+	Class              string    `json:"class"`
+	StartTime          time.Time `json:"startTime"`
+	Duration           *int64    `json:"duration,omitempty"`
+	TotalCost          float64   `json:"totalCost"`
+	UnknownPricing     bool      `json:"unknownPricing"`
 }
 
 // ContentPartItem is a single element in a message's content array.
@@ -149,6 +163,52 @@ func classString(c provider.SessionClass) string {
 	}
 }
 
+func canonicalProjectID(s *provider.SessionMeta) string {
+	if s.CanonicalProjectID != "" {
+		return s.CanonicalProjectID
+	}
+	if s.RawProjectPath != "" {
+		return s.RawProjectPath
+	}
+	return s.ProjectPath
+}
+
+func rawProjectPath(s *provider.SessionMeta) string {
+	if s.RawProjectPath != "" {
+		return s.RawProjectPath
+	}
+	return s.ProjectPath
+}
+
+func displayProjectName(s *provider.SessionMeta) string {
+	if s.DisplayProjectName != "" {
+		return s.DisplayProjectName
+	}
+	if id := canonicalProjectID(s); id != "" {
+		return id
+	}
+	return rawProjectPath(s)
+}
+
+func aggregateTaskID(s *provider.SessionMeta) string {
+	if s.TaskID != "" {
+		return s.TaskID
+	}
+	if s.Class == provider.ClassManual || s.Class == provider.ClassUntagged {
+		return "manual"
+	}
+	return ""
+}
+
+func setToSortedSlice(values map[string]struct{}) []string {
+	items := make([]string, 0, len(values))
+	for value := range values {
+		items = append(items, value)
+	}
+	sort.Strings(items)
+	return items
+}
+
 // parseFilters extracts the provider list and doug_only flag from query params.
 // provider may appear multiple times; doug_only must equal "true" to be active.
 func parseFilters(r *http.Request) (providers []string, dougOnly bool) {
@@ -189,21 +249,56 @@ func (h *Handler) handleProjects(w http.ResponseWriter, r *http.Request) {
 	provs, dougOnly := parseFilters(r)
 	filtered := filterSessions(h.sessions, provs, dougOnly)
 
-	type acc struct{ cost pricing.Cost }
+	type acc struct {
+		displayName  string
+		aliases      map[string]struct{}
+		providers    map[string]struct{}
+		tasks        map[string]struct{}
+		sessionCount int
+		cost         pricing.Cost
+	}
 	byProject := make(map[string]*acc)
 	for _, s := range filtered {
-		if _, ok := byProject[s.ProjectPath]; !ok {
-			byProject[s.ProjectPath] = &acc{}
+		projectID := canonicalProjectID(s)
+		if _, ok := byProject[projectID]; !ok {
+			byProject[projectID] = &acc{
+				displayName: displayProjectName(s),
+				aliases:     make(map[string]struct{}),
+				providers:   make(map[string]struct{}),
+				tasks:       make(map[string]struct{}),
+			}
 		}
-		byProject[s.ProjectPath].cost = byProject[s.ProjectPath].cost.Add(h.costs[s.ID])
+		project := byProject[projectID]
+		if project.displayName == "" {
+			project.displayName = displayProjectName(s)
+		}
+		project.sessionCount++
+		project.providers[s.Provider] = struct{}{}
+		if alias := rawProjectPath(s); alias != "" && alias != projectID {
+			project.aliases[alias] = struct{}{}
+		}
+		for _, alias := range s.ProjectAliases {
+			if alias != "" && alias != projectID {
+				project.aliases[alias] = struct{}{}
+			}
+		}
+		if taskID := aggregateTaskID(s); taskID != "" {
+			project.tasks[taskID] = struct{}{}
+		}
+		project.cost = project.cost.Add(h.costs[s.ID])
 	}
 
 	items := make([]ProjectItem, 0, len(byProject))
-	for path, a := range byProject {
+	for projectID, a := range byProject {
 		items = append(items, ProjectItem{
-			Path:    path,
-			CostUSD: a.cost.USD,
-			Unknown: a.cost.Unknown,
+			CanonicalProjectID: projectID,
+			DisplayName:        a.displayName,
+			Aliases:            setToSortedSlice(a.aliases),
+			ProviderCoverage:   setToSortedSlice(a.providers),
+			SessionCount:       a.sessionCount,
+			TaskCount:          len(a.tasks),
+			TotalCost:          a.cost.USD,
+			UnknownPricing:     a.cost.Unknown,
 		})
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -217,46 +312,43 @@ func (h *Handler) handleTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	provs, dougOnly := parseFilters(r)
 
-	// Filter to project first, then apply provider/dougOnly filters.
+	// Filter to canonical project first, then apply provider/dougOnly filters.
 	var projectSessions []*provider.SessionMeta
 	for _, s := range h.sessions {
-		if s.ProjectPath == project {
+		if canonicalProjectID(s) == project {
 			projectSessions = append(projectSessions, s)
 		}
 	}
 	filtered := filterSessions(projectSessions, provs, dougOnly)
 
-	type acc struct{ cost pricing.Cost }
+	type acc struct {
+		providers    map[string]struct{}
+		sessionCount int
+		cost         pricing.Cost
+	}
 	byTask := make(map[string]*acc)
-	manualCost := pricing.Cost{}
-	hasManual := false
 
 	for _, s := range filtered {
-		switch s.Class {
-		case provider.ClassDoug:
-			if _, ok := byTask[s.TaskID]; !ok {
-				byTask[s.TaskID] = &acc{}
-			}
-			byTask[s.TaskID].cost = byTask[s.TaskID].cost.Add(h.costs[s.ID])
-		case provider.ClassManual, provider.ClassUntagged:
-			hasManual = true
-			manualCost = manualCost.Add(h.costs[s.ID])
+		taskID := aggregateTaskID(s)
+		if taskID == "" {
+			continue
 		}
+		if _, ok := byTask[taskID]; !ok {
+			byTask[taskID] = &acc{providers: make(map[string]struct{})}
+		}
+		byTask[taskID].providers[s.Provider] = struct{}{}
+		byTask[taskID].sessionCount++
+		byTask[taskID].cost = byTask[taskID].cost.Add(h.costs[s.ID])
 	}
 
-	items := make([]TaskItem, 0, len(byTask)+1)
+	items := make([]TaskItem, 0, len(byTask))
 	for taskID, a := range byTask {
 		items = append(items, TaskItem{
-			TaskID:  taskID,
-			CostUSD: a.cost.USD,
-			Unknown: a.cost.Unknown,
-		})
-	}
-	if hasManual {
-		items = append(items, TaskItem{
-			TaskID:  "manual",
-			CostUSD: manualCost.USD,
-			Unknown: manualCost.Unknown,
+			TaskID:           taskID,
+			ProviderCoverage: setToSortedSlice(a.providers),
+			SessionCount:     a.sessionCount,
+			TotalCost:        a.cost.USD,
+			UnknownPricing:   a.cost.Unknown,
 		})
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -290,7 +382,7 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 	if project != "" {
 		var inProject []*provider.SessionMeta
 		for _, s := range candidates {
-			if s.ProjectPath == project {
+			if canonicalProjectID(s) == project {
 				inProject = append(inProject, s)
 			}
 		}
@@ -303,16 +395,17 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 	for _, s := range filtered {
 		cost := h.costs[s.ID]
 		items = append(items, SessionItem{
-			ID:          s.ID,
-			Provider:    s.Provider,
-			ProjectPath: s.ProjectPath,
-			TaskID:      s.TaskID,
-			Model:       s.Model,
-			Class:       classString(s.Class),
-			StartTime:   s.StartTime,
-			DurationMs:  s.DurationMs,
-			CostUSD:     cost.USD,
-			Unknown:     cost.Unknown,
+			ID:                 s.ID,
+			Provider:           s.Provider,
+			CanonicalProjectID: canonicalProjectID(s),
+			RawProjectPath:     rawProjectPath(s),
+			TaskID:             s.TaskID,
+			Model:              s.Model,
+			Class:              classString(s.Class),
+			StartTime:          s.StartTime,
+			Duration:           s.DurationMs,
+			TotalCost:          cost.USD,
+			UnknownPricing:     cost.Unknown,
 		})
 	}
 	writeJSON(w, http.StatusOK, items)

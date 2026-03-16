@@ -31,14 +31,17 @@ func (m *mockProvider) LoadTranscript(id string) (*provider.Transcript, error) {
 
 func newSession(id, provName, project, taskID string, class provider.SessionClass) *provider.SessionMeta {
 	return &provider.SessionMeta{
-		ID:          id,
-		Provider:    provName,
-		ProjectPath: project,
-		TaskID:      taskID,
-		Model:       "claude-sonnet-4-6",
-		Class:       class,
-		StartTime:   time.Time{},
-		Tokens:      provider.TokenCounts{Output: 1_000_000}, // $15 with sonnet-4-6
+		ID:                 id,
+		Provider:           provName,
+		ProjectPath:        project,
+		RawProjectPath:     project,
+		CanonicalProjectID: project,
+		DisplayProjectName: project,
+		TaskID:             taskID,
+		Model:              "claude-sonnet-4-6",
+		Class:              class,
+		StartTime:          time.Time{},
+		Tokens:             provider.TokenCounts{Output: 1_000_000}, // $15 with sonnet-4-6
 	}
 }
 
@@ -186,8 +189,8 @@ func TestProjects_AggregateIncludesAllTypes(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("want 1 project, got %d", len(items))
 	}
-	if items[0].CostUSD != 30.0 {
-		t.Errorf("want 30.0 (both session types), got %v", items[0].CostUSD)
+	if items[0].TotalCost != 30.0 {
+		t.Errorf("want 30.0 (both session types), got %v", items[0].TotalCost)
 	}
 }
 
@@ -203,8 +206,8 @@ func TestProjects_DougOnlyExcludesManual(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("want 1 project, got %d", len(items))
 	}
-	if items[0].CostUSD != 15.0 {
-		t.Errorf("want 15.0 (only doug session), got %v", items[0].CostUSD)
+	if items[0].TotalCost != 15.0 {
+		t.Errorf("want 15.0 (only doug session), got %v", items[0].TotalCost)
 	}
 }
 
@@ -217,8 +220,70 @@ func TestProjects_ProviderFilter(t *testing.T) {
 	w := doGet(h, "/api/projects?provider=claude")
 	var items []ProjectItem
 	json.Unmarshal(w.Body.Bytes(), &items)
-	if len(items) != 1 || items[0].Path != "/proj/a" {
+	if len(items) != 1 || items[0].CanonicalProjectID != "/proj/a" {
 		t.Errorf("want only /proj/a, got %v", items)
+	}
+}
+
+func TestProjects_ResponseShapeAndUnknownPricing(t *testing.T) {
+	sessions := []*provider.SessionMeta{
+		{
+			ID:                 "s1",
+			Provider:           "claude",
+			ProjectPath:        "/claude/proj/a",
+			RawProjectPath:     "/claude/proj/a",
+			CanonicalProjectID: "project-alpha",
+			DisplayProjectName: "Project Alpha",
+			ProjectAliases:     []string{"alpha-repo"},
+			TaskID:             "T1",
+			Model:              "claude-sonnet-4-6",
+			Class:              provider.ClassDoug,
+			Tokens:             provider.TokenCounts{Output: 1_000_000},
+		},
+		{
+			ID:                 "s2",
+			Provider:           "gemini",
+			ProjectPath:        "/gemini/proj/a",
+			RawProjectPath:     "/gemini/proj/a",
+			CanonicalProjectID: "project-alpha",
+			DisplayProjectName: "Project Alpha",
+			Class:              provider.ClassManual,
+			Model:              "unknown-model",
+			Tokens:             provider.TokenCounts{Input: 1},
+		},
+	}
+
+	h := buildHandler(sessions, nil)
+	w := doGet(h, "/api/projects")
+	var items []ProjectItem
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("want 1 project, got %d", len(items))
+	}
+
+	item := items[0]
+	if item.CanonicalProjectID != "project-alpha" {
+		t.Fatalf("canonicalProjectID = %q, want project-alpha", item.CanonicalProjectID)
+	}
+	if item.DisplayName != "Project Alpha" {
+		t.Fatalf("displayName = %q, want Project Alpha", item.DisplayName)
+	}
+	if len(item.Aliases) != 3 {
+		t.Fatalf("aliases = %v, want 3 aliases", item.Aliases)
+	}
+	if len(item.ProviderCoverage) != 2 {
+		t.Fatalf("providerCoverage = %v, want 2 providers", item.ProviderCoverage)
+	}
+	if item.SessionCount != 2 {
+		t.Fatalf("sessionCount = %d, want 2", item.SessionCount)
+	}
+	if item.TaskCount != 2 {
+		t.Fatalf("taskCount = %d, want 2", item.TaskCount)
+	}
+	if !item.UnknownPricing {
+		t.Fatal("unknownPricing = false, want true")
 	}
 }
 
@@ -266,8 +331,8 @@ func TestTasks_VirtualManualEntry(t *testing.T) {
 		if item.TaskID == "manual" {
 			hasManual = true
 			// Manual ($15) + Untagged ($15) = $30
-			if item.CostUSD != 30.0 {
-				t.Errorf("manual cost: want 30.0, got %v", item.CostUSD)
+			if item.TotalCost != 30.0 {
+				t.Errorf("manual cost: want 30.0, got %v", item.TotalCost)
 			}
 		}
 	}
@@ -306,8 +371,68 @@ func TestTasks_AggregateCorrect(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("want 1 task, got %d", len(items))
 	}
-	if items[0].CostUSD != 30.0 {
-		t.Errorf("want 30.0, got %v", items[0].CostUSD)
+	if items[0].TotalCost != 30.0 {
+		t.Errorf("want 30.0, got %v", items[0].TotalCost)
+	}
+}
+
+func TestTasks_CanonicalProjectScopeAndShape(t *testing.T) {
+	sessions := []*provider.SessionMeta{
+		{
+			ID:                 "s1",
+			Provider:           "claude",
+			ProjectPath:        "/claude/proj/a",
+			RawProjectPath:     "/claude/proj/a",
+			CanonicalProjectID: "project-alpha",
+			TaskID:             "TASK-1",
+			Model:              "claude-sonnet-4-6",
+			Class:              provider.ClassDoug,
+			Tokens:             provider.TokenCounts{Output: 1_000_000},
+		},
+		{
+			ID:                 "s2",
+			Provider:           "gemini",
+			ProjectPath:        "/gemini/proj/a",
+			RawProjectPath:     "/gemini/proj/a",
+			CanonicalProjectID: "project-alpha",
+			TaskID:             "TASK-1",
+			Model:              "gemini-2.5-flash",
+			Class:              provider.ClassDoug,
+			Tokens:             provider.TokenCounts{Input: 1_000_000},
+		},
+		{
+			ID:                 "s3",
+			Provider:           "claude",
+			ProjectPath:        "/claude/proj/b",
+			RawProjectPath:     "/claude/proj/b",
+			CanonicalProjectID: "project-beta",
+			TaskID:             "TASK-1",
+			Model:              "claude-sonnet-4-6",
+			Class:              provider.ClassDoug,
+			Tokens:             provider.TokenCounts{Output: 1_000_000},
+		},
+	}
+
+	h := buildHandler(sessions, nil)
+	w := doGet(h, "/api/tasks?project=project-alpha")
+	var items []TaskItem
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("want 1 task, got %d", len(items))
+	}
+	if items[0].TaskID != "TASK-1" {
+		t.Fatalf("taskID = %q, want TASK-1", items[0].TaskID)
+	}
+	if len(items[0].ProviderCoverage) != 2 {
+		t.Fatalf("providerCoverage = %v, want 2 providers", items[0].ProviderCoverage)
+	}
+	if items[0].SessionCount != 2 {
+		t.Fatalf("sessionCount = %d, want 2", items[0].SessionCount)
+	}
+	if items[0].UnknownPricing {
+		t.Fatal("unknownPricing = true, want false")
 	}
 }
 
@@ -325,15 +450,17 @@ func TestSessions_ByTaskID(t *testing.T) {
 	durationMs := int64(2000)
 	sessions := []*provider.SessionMeta{
 		{
-			ID:          "s1",
-			Provider:    "claude",
-			ProjectPath: "/proj/a",
-			TaskID:      "T1",
-			Model:       "claude-sonnet-4-6",
-			Class:       provider.ClassDoug,
-			StartTime:   time.Time{},
-			DurationMs:  &durationMs,
-			Tokens:      provider.TokenCounts{Output: 1_000_000},
+			ID:                 "s1",
+			Provider:           "claude",
+			ProjectPath:        "/proj/a",
+			RawProjectPath:     "/proj/a",
+			CanonicalProjectID: "project-alpha",
+			TaskID:             "T1",
+			Model:              "claude-sonnet-4-6",
+			Class:              provider.ClassDoug,
+			StartTime:          time.Time{},
+			DurationMs:         &durationMs,
+			Tokens:             provider.TokenCounts{Output: 1_000_000},
 		},
 		newSession("s2", "claude", "/proj/a", "T2", provider.ClassDoug),
 	}
@@ -344,8 +471,14 @@ func TestSessions_ByTaskID(t *testing.T) {
 	if len(items) != 1 || items[0].ID != "s1" {
 		t.Errorf("want [s1], got %v", items)
 	}
-	if items[0].DurationMs == nil || *items[0].DurationMs != 2000 {
-		t.Fatalf("duration_ms = %v, want 2000", items[0].DurationMs)
+	if items[0].Duration == nil || *items[0].Duration != 2000 {
+		t.Fatalf("duration = %v, want 2000", items[0].Duration)
+	}
+	if items[0].CanonicalProjectID != "project-alpha" {
+		t.Fatalf("canonicalProjectID = %q, want project-alpha", items[0].CanonicalProjectID)
+	}
+	if items[0].RawProjectPath != "/proj/a" {
+		t.Fatalf("rawProjectPath = %q, want /proj/a", items[0].RawProjectPath)
 	}
 }
 
@@ -421,6 +554,59 @@ func TestSessions_ClassField(t *testing.T) {
 	check("T1", "doug")
 	check("manual", "manual")
 	check("manual", "untagged")
+}
+
+func TestAPIShape_RequiredFieldsPresent(t *testing.T) {
+	durationMs := int64(2000)
+	sessions := []*provider.SessionMeta{
+		{
+			ID:                 "s1",
+			Provider:           "claude",
+			ProjectPath:        "/claude/proj/a",
+			RawProjectPath:     "/claude/proj/a",
+			CanonicalProjectID: "project-alpha",
+			DisplayProjectName: "Project Alpha",
+			ProjectAliases:     []string{"alpha-repo"},
+			TaskID:             "TASK-1",
+			Model:              "claude-sonnet-4-6",
+			Class:              provider.ClassDoug,
+			DurationMs:         &durationMs,
+			Tokens:             provider.TokenCounts{Output: 1_000_000},
+		},
+	}
+	h := buildHandler(sessions, nil)
+
+	checkKeys := func(path string, wantKeys ...string) {
+		t.Helper()
+		w := doGet(h, path)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: want 200, got %d", path, w.Code)
+		}
+		var items []map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+			t.Fatalf("%s: unmarshal: %v", path, err)
+		}
+		if len(items) != 1 {
+			t.Fatalf("%s: want 1 item, got %d", path, len(items))
+		}
+		for _, key := range wantKeys {
+			if _, ok := items[0][key]; !ok {
+				t.Fatalf("%s: missing key %q in %v", path, key, items[0])
+			}
+		}
+	}
+
+	checkKeys("/api/projects",
+		"canonicalProjectID", "displayName", "aliases", "providerCoverage",
+		"sessionCount", "taskCount", "totalCost", "unknownPricing",
+	)
+	checkKeys("/api/tasks?project=project-alpha",
+		"taskID", "providerCoverage", "sessionCount", "totalCost", "unknownPricing",
+	)
+	checkKeys("/api/sessions?task=TASK-1&project=project-alpha",
+		"id", "provider", "canonicalProjectID", "rawProjectPath", "taskID",
+		"model", "class", "startTime", "duration", "totalCost", "unknownPricing",
+	)
 }
 
 // --- /api/sessions/:id/messages ---
@@ -526,31 +712,40 @@ func TestErrorEnvelope(t *testing.T) {
 func TestE2E_MultiProvider_ProjectAggregateIncludesAllProviders(t *testing.T) {
 	sessions := []*provider.SessionMeta{
 		{
-			ID:          "claude-s1",
-			Provider:    "claude",
-			ProjectPath: "/proj/all",
-			TaskID:      "T-CLAUDE",
-			Model:       "claude-sonnet-4-6",
-			Class:       provider.ClassDoug,
-			Tokens:      provider.TokenCounts{Output: 1_000_000}, // $15.0
+			ID:                 "claude-s1",
+			Provider:           "claude",
+			ProjectPath:        "/claude/proj/all",
+			RawProjectPath:     "/claude/proj/all",
+			CanonicalProjectID: "project-all",
+			DisplayProjectName: "Project All",
+			TaskID:             "T-CLAUDE",
+			Model:              "claude-sonnet-4-6",
+			Class:              provider.ClassDoug,
+			Tokens:             provider.TokenCounts{Output: 1_000_000}, // $15.0
 		},
 		{
-			ID:          "gemini-s1",
-			Provider:    "gemini",
-			ProjectPath: "/proj/all",
-			TaskID:      "T-GEMINI",
-			Model:       "gemini-2.5-flash",
-			Class:       provider.ClassDoug,
-			Tokens:      provider.TokenCounts{Input: 1_000_000}, // $0.3
+			ID:                 "gemini-s1",
+			Provider:           "gemini",
+			ProjectPath:        "/gemini/proj/all",
+			RawProjectPath:     "/gemini/proj/all",
+			CanonicalProjectID: "project-all",
+			DisplayProjectName: "Project All",
+			TaskID:             "T-GEMINI",
+			Model:              "gemini-2.5-flash",
+			Class:              provider.ClassDoug,
+			Tokens:             provider.TokenCounts{Input: 1_000_000}, // $0.3
 		},
 		{
-			ID:          "codex-s1",
-			Provider:    "codex",
-			ProjectPath: "/proj/all",
-			TaskID:      "T-CODEX",
-			Model:       "gpt-5-codex",
-			Class:       provider.ClassDoug,
-			Tokens:      provider.TokenCounts{Output: 1_000_000}, // $10.0
+			ID:                 "codex-s1",
+			Provider:           "codex",
+			ProjectPath:        "/codex/proj/all",
+			RawProjectPath:     "/codex/proj/all",
+			CanonicalProjectID: "project-all",
+			DisplayProjectName: "Project All",
+			TaskID:             "T-CODEX",
+			Model:              "gpt-5-codex",
+			Class:              provider.ClassDoug,
+			Tokens:             provider.TokenCounts{Output: 1_000_000}, // $10.0
 		},
 	}
 	h := buildHandler(sessions, nil)
@@ -566,14 +761,14 @@ func TestE2E_MultiProvider_ProjectAggregateIncludesAllProviders(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("want 1 project, got %d", len(items))
 	}
-	if items[0].Path != "/proj/all" {
-		t.Fatalf("project path = %q, want /proj/all", items[0].Path)
+	if items[0].CanonicalProjectID != "project-all" {
+		t.Fatalf("canonicalProjectID = %q, want project-all", items[0].CanonicalProjectID)
 	}
-	if items[0].Unknown {
+	if items[0].UnknownPricing {
 		t.Fatal("expected known aggregate cost")
 	}
-	if items[0].CostUSD != 25.3 {
-		t.Fatalf("aggregate cost = %v, want 25.3", items[0].CostUSD)
+	if items[0].TotalCost != 25.3 {
+		t.Fatalf("aggregate cost = %v, want 25.3", items[0].TotalCost)
 	}
 }
 
@@ -622,8 +817,8 @@ func TestE2E_MultiProvider_ProviderFilterCombinations(t *testing.T) {
 		if len(items) != 1 {
 			t.Fatalf("%s: want 1 project, got %d", path, len(items))
 		}
-		if items[0].CostUSD != want {
-			t.Fatalf("%s: cost = %v, want %v", path, items[0].CostUSD, want)
+		if items[0].TotalCost != want {
+			t.Fatalf("%s: cost = %v, want %v", path, items[0].TotalCost, want)
 		}
 	}
 
@@ -681,8 +876,8 @@ func TestE2E_MultiProvider_PerSessionCostRepresentativePerProvider(t *testing.T)
 		if items[0].Provider != wantProvider {
 			t.Fatalf("task=%s: provider=%q, want %q", taskID, items[0].Provider, wantProvider)
 		}
-		if items[0].CostUSD != want {
-			t.Fatalf("task=%s: cost=%v, want %v", taskID, items[0].CostUSD, want)
+		if items[0].TotalCost != want {
+			t.Fatalf("task=%s: cost=%v, want %v", taskID, items[0].TotalCost, want)
 		}
 	}
 
