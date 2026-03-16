@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat: EPIC-4-002 — add shared project resolver package (provider/resolver)
 - Expanded provider.SessionMeta with five canonical identity fields: RawProjectPath, CanonicalProjectID, CanonicalProjectSource, DisplayProjectName, and ProjectAliases. Added CanonicalProjectSource type with four enum constants.
 - Added multi-provider end-to-end API test coverage (Claude/Gemini/Codex), expanded provider query test coverage, and added README documenting supported providers, --logs-dir, and current limitations.
 - Implemented Codex provider ingestion via state_5.sqlite threads index with rollout-path JSONL parsing, token correlation, pricing, and startup integration.
