@@ -62,6 +62,9 @@ Windows. Agents cannot run shell commands. Use WSL2 to run doug on Windows:
 
 
 <!-- DOUG-SPECIFIC-INSTRUCTIONS:START -->
+DOUG_PROJECT_ID: doug-stats-ca65d3
+DOUG_PROJECT_NAME: Doug Stats
+
 ## Doug-Specific Instructions
 
 This section is managed by `doug init`. Keep repository-specific operating rules here, and keep task skills focused on their workflow.

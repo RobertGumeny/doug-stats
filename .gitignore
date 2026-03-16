@@ -1,3 +1,5 @@
 .doug
 frontend/node_modules
 frontend/dist
+
+.doug/
