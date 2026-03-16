@@ -264,7 +264,12 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath string, startTime ti
 		}
 	}
 
-	res := resolver.Resolve(resolver.Input{RawPath: projectPath})
+	dougMeta := resolver.ParseDougMeta(filepath.Join(projectPath, "AGENTS.md"))
+	res := resolver.Resolve(resolver.Input{
+		DougProjectID:   dougMeta.ProjectID,
+		DougProjectName: dougMeta.ProjectName,
+		RawPath:         projectPath,
+	})
 	return &provider.SessionMeta{
 		ID:                     sessionID,
 		Provider:               providerName,

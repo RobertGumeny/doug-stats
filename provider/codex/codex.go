@@ -85,9 +85,12 @@ func (p *Provider) LoadSessions() ([]*provider.SessionMeta, error) {
 			meta.ProjectPath = parsedProjectPath
 		}
 
+		dougMeta := resolver.ParseDougMeta(filepath.Join(th.CWD, "AGENTS.md"))
 		res := resolver.Resolve(resolver.Input{
-			GitRemoteURL: th.GitOriginURL,
-			RawPath:      th.CWD,
+			DougProjectID:   dougMeta.ProjectID,
+			DougProjectName: dougMeta.ProjectName,
+			GitRemoteURL:    th.GitOriginURL,
+			RawPath:         th.CWD,
 		})
 		meta.RawProjectPath = meta.ProjectPath
 		meta.CanonicalProjectID = res.CanonicalProjectID
