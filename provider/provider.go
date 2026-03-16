@@ -24,6 +24,16 @@ type TokenCounts struct {
 	Tool          int64
 }
 
+// CanonicalProjectSource identifies which resolution step produced the canonical project ID.
+type CanonicalProjectSource string
+
+const (
+	SourceDoug           CanonicalProjectSource = "doug"
+	SourceGitRemote      CanonicalProjectSource = "git-remote"
+	SourceNormalizedPath CanonicalProjectSource = "normalized-path"
+	SourceBasenameFallback CanonicalProjectSource = "basename-fallback"
+)
+
 // SessionMeta contains the Phase 1 index data for a session.
 type SessionMeta struct {
 	ID          string
@@ -34,6 +44,13 @@ type SessionMeta struct {
 	Class       SessionClass
 	StartTime   time.Time
 	Tokens      TokenCounts
+
+	// Canonical identity fields (populated by the project resolver).
+	RawProjectPath         string                 // copy of the raw provider path before any normalization
+	CanonicalProjectID     string                 // stable cross-provider grouping key
+	CanonicalProjectSource CanonicalProjectSource // which resolution step produced CanonicalProjectID
+	DisplayProjectName     string                 // human-readable project name
+	ProjectAliases         []string               // other known paths/names for this project
 }
 
 // ContentPart is a single content element in a message.
