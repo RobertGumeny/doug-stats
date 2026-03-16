@@ -1,10 +1,11 @@
 ---
 title: Gemini logs.json Provider Pattern
-updated: 2026-03-06
+updated: 2026-03-16
 category: Patterns
 tags: [go, gemini, json, provider, tokens]
 related_articles:
   - docs/kb/architecture/two-phase-session-loading.md
+  - docs/kb/architecture/canonical-project-identity.md
   - docs/kb/dependencies/model-pricing-and-aggregation.md
   - docs/kb/integration/http-api-endpoints.md
   - docs/kb/features/dashboard-project-and-task-views.md
@@ -26,6 +27,7 @@ Phase 1:
 - Use `logs.json` as the session index; only fall back to `chats/*.json` scanning when `logs.json` is absent.
 - For each indexed session, parse the chat file to aggregate `input`, `output`, `cached`, `thoughts`, and `tool` tokens.
 - Classify sessions as Doug/Manual/Untagged by scanning user content for `[DOUG_TASK_ID: ...]`.
+- Call `resolver.ParseDougMeta` + `resolver.Resolve` to populate canonical project identity fields on `SessionMeta`.
 
 Phase 2:
 - Parse the full session chat JSON for `GET /api/sessions/:id/messages`.
@@ -55,5 +57,6 @@ transcript, _ := p.LoadTranscript(sessions[0].ID)
 
 ## Related Topics
 
+See [Canonical Project Identity](../architecture/canonical-project-identity.md) for the resolver that populates `CanonicalProjectID` in Phase 1.
 See [Two-Phase Session Loading Architecture](../architecture/two-phase-session-loading.md) for startup/on-demand boundaries.
 See [Model Pricing Registry and Cost Aggregation](../dependencies/model-pricing-and-aggregation.md) for Gemini cached/thought/tool cost handling.

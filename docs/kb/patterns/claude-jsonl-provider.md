@@ -1,10 +1,11 @@
 ---
 title: Claude JSONL Provider Pattern
-updated: 2026-03-06
+updated: 2026-03-16
 category: Patterns
 tags: [go, jsonl, parsing, provider]
 related_articles:
   - docs/kb/architecture/two-phase-session-loading.md
+  - docs/kb/architecture/canonical-project-identity.md
   - docs/kb/patterns/gemini-logs-json-provider.md
   - docs/kb/patterns/codex-sqlite-rollout-provider.md
   - docs/kb/dependencies/model-pricing-and-aggregation.md
@@ -26,6 +27,7 @@ Phase 1:
 - Resolve each transcript path from encoded project path
 - Scan transcript lines to accumulate final assistant token usage
 - Classify session as Doug, Manual, or Untagged
+- Call `resolver.ParseDougMeta` + `resolver.Resolve` to populate canonical project identity fields on `SessionMeta`
 
 Phase 2:
 - Parse full transcript for a single session ID
@@ -54,6 +56,7 @@ transcript, _ := p.LoadTranscript(sessions[0].ID)
 
 ## Related Topics
 
+See [Canonical Project Identity](../architecture/canonical-project-identity.md) for the resolver that populates `CanonicalProjectID` in Phase 1.
 See [HTTP API Endpoints](../integration/http-api-endpoints.md) for how session class and transcript data are exposed.
 See [Dashboard Navigation and Cost Views](../features/dashboard-project-and-task-views.md) for UI handling of transcript content and tool blocks.
 See [Gemini logs.json Provider Pattern](./gemini-logs-json-provider.md) and [Codex SQLite + Rollout Provider Pattern](./codex-sqlite-rollout-provider.md) for non-Claude source-of-truth variants under the same provider interface.
