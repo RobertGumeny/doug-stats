@@ -376,6 +376,58 @@ func TestTasks_AggregateCorrect(t *testing.T) {
 	}
 }
 
+func TestTasks_SortedByCostDescending(t *testing.T) {
+	sessions := []*provider.SessionMeta{
+		{
+			ID:                 "s1",
+			Provider:           "claude",
+			ProjectPath:        "/proj/a",
+			RawProjectPath:     "/proj/a",
+			CanonicalProjectID: "/proj/a",
+			TaskID:             "T-expensive",
+			Model:              "claude-sonnet-4-6",
+			Class:              provider.ClassDoug,
+			Tokens:             provider.TokenCounts{Output: 1_000_000}, // $15.0
+		},
+		{
+			ID:                 "s2",
+			Provider:           "gemini",
+			ProjectPath:        "/proj/a",
+			RawProjectPath:     "/proj/a",
+			CanonicalProjectID: "/proj/a",
+			TaskID:             "T-cheap",
+			Model:              "gemini-2.5-flash",
+			Class:              provider.ClassDoug,
+			Tokens:             provider.TokenCounts{Input: 1_000_000}, // $0.3
+		},
+	}
+	h := buildHandler(sessions, nil)
+
+	w := doGet(h, "/api/tasks?project=/proj/a&sort=cost")
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+
+	var items []TaskItem
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("want 2 tasks, got %d", len(items))
+	}
+	if items[0].TaskID != "T-expensive" || items[1].TaskID != "T-cheap" {
+		t.Fatalf("got order %q, %q; want T-expensive, T-cheap", items[0].TaskID, items[1].TaskID)
+	}
+}
+
+func TestTasks_InvalidSort(t *testing.T) {
+	h := buildHandler(nil, nil)
+	w := doGet(h, "/api/tasks?project=/proj/a&sort=recent")
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", w.Code)
+	}
+}
+
 func TestTasks_CanonicalProjectScopeAndShape(t *testing.T) {
 	sessions := []*provider.SessionMeta{
 		{
@@ -522,6 +574,108 @@ func TestSessions_DougOnlyExcludesManual(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &items)
 	if len(items) != 0 {
 		t.Errorf("want 0 sessions with doug_only=true, got %d", len(items))
+	}
+}
+
+func TestSessions_DefaultSortsByRecencyDescending(t *testing.T) {
+	now := time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC)
+	sessions := []*provider.SessionMeta{
+		{
+			ID:                 "s-old",
+			Provider:           "claude",
+			ProjectPath:        "/proj/a",
+			RawProjectPath:     "/proj/a",
+			CanonicalProjectID: "/proj/a",
+			TaskID:             "T1",
+			Model:              "claude-sonnet-4-6",
+			Class:              provider.ClassDoug,
+			StartTime:          now.Add(-2 * time.Hour),
+			Tokens:             provider.TokenCounts{Output: 1_000_000},
+		},
+		{
+			ID:                 "s-new",
+			Provider:           "claude",
+			ProjectPath:        "/proj/a",
+			RawProjectPath:     "/proj/a",
+			CanonicalProjectID: "/proj/a",
+			TaskID:             "T1",
+			Model:              "claude-sonnet-4-6",
+			Class:              provider.ClassDoug,
+			StartTime:          now,
+			Tokens:             provider.TokenCounts{Output: 1_000_000},
+		},
+	}
+	h := buildHandler(sessions, nil)
+
+	w := doGet(h, "/api/sessions?task=T1")
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+
+	var items []SessionItem
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("want 2 sessions, got %d", len(items))
+	}
+	if items[0].ID != "s-new" || items[1].ID != "s-old" {
+		t.Fatalf("got order %q, %q; want s-new, s-old", items[0].ID, items[1].ID)
+	}
+}
+
+func TestSessions_SortByCostDescending(t *testing.T) {
+	now := time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC)
+	sessions := []*provider.SessionMeta{
+		{
+			ID:                 "s-cheap",
+			Provider:           "gemini",
+			ProjectPath:        "/proj/a",
+			RawProjectPath:     "/proj/a",
+			CanonicalProjectID: "/proj/a",
+			TaskID:             "T1",
+			Model:              "gemini-2.5-flash",
+			Class:              provider.ClassDoug,
+			StartTime:          now,
+			Tokens:             provider.TokenCounts{Input: 1_000_000}, // $0.3
+		},
+		{
+			ID:                 "s-expensive",
+			Provider:           "claude",
+			ProjectPath:        "/proj/a",
+			RawProjectPath:     "/proj/a",
+			CanonicalProjectID: "/proj/a",
+			TaskID:             "T1",
+			Model:              "claude-sonnet-4-6",
+			Class:              provider.ClassDoug,
+			StartTime:          now.Add(-time.Hour),
+			Tokens:             provider.TokenCounts{Output: 1_000_000}, // $15.0
+		},
+	}
+	h := buildHandler(sessions, nil)
+
+	w := doGet(h, "/api/sessions?task=T1&sort=cost")
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+
+	var items []SessionItem
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("want 2 sessions, got %d", len(items))
+	}
+	if items[0].ID != "s-expensive" || items[1].ID != "s-cheap" {
+		t.Fatalf("got order %q, %q; want s-expensive, s-cheap", items[0].ID, items[1].ID)
+	}
+}
+
+func TestSessions_InvalidSort(t *testing.T) {
+	h := buildHandler(nil, nil)
+	w := doGet(h, "/api/sessions?task=T1&sort=project")
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", w.Code)
 	}
 }
 

@@ -23,13 +23,15 @@ The API layer serves project, task, and session data from in-memory startup aggr
 Endpoints:
 - `GET /api/health`
 - `GET /api/projects`
-- `GET /api/tasks?project=<path>`
-- `GET /api/sessions?task=<id>[&project=<path>]`
+- `GET /api/tasks?project=<path>[&sort=cost]`
+- `GET /api/sessions?task=<id>[&project=<path>][&sort=recent|cost]`
 - `GET /api/sessions/:id/messages`
 
 Behavior highlights:
 - `task=manual` is a virtual task that matches manual and untagged sessions.
 - `/api/tasks` appends a virtual `"manual"` entry when non-Doug sessions exist in the selected project (unless `doug_only=true`).
+- `/api/tasks` requires `project=<canonicalProjectID>` and returns tasks sorted by descending `totalCost`; `sort=cost` is the supported explicit sort key.
+- `/api/sessions` requires `task=<id>` and supports `sort=recent` (default) or `sort=cost`, both descending.
 - Errors use a stable envelope: `{"error":"..."}`.
 - Session list responses include `class`, `model`, and precomputed `duration_ms` metadata for frontend filtering and labels.
 - Message responses preserve raw provider content parts while attaching computed per-turn cost fields.
@@ -48,12 +50,15 @@ Only `/api/sessions/:id/messages` triggers Phase 2 transcript parsing through pr
 ## Usage Example
 
 ```bash
-curl '/api/tasks?project=/home/user/repo&provider=claude&doug_only=true'
+curl '/api/tasks?project=/home/user/repo&provider=claude&doug_only=true&sort=cost'
+curl '/api/sessions?task=TASK-123&project=/home/user/repo&sort=recent'
+curl '/api/sessions?task=TASK-123&project=/home/user/repo&sort=cost'
 ```
 
 ## Edge Cases & Gotchas
 
 - Missing `project` on `/api/tasks` and missing `task` on `/api/sessions` return `400`.
+- Unsupported `sort` values on `/api/tasks` or `/api/sessions` return `400`.
 - Unknown provider name in session metadata during message lookup returns `500`.
 - `task=manual` with `doug_only=true` returns no rows by design.
 

@@ -13,13 +13,13 @@
 //	      "providerCoverage":["claude"],"sessionCount":1,"taskCount":1,
 //	      "totalCost":1.23,"unknownPricing":false}, ...]
 //
-//	GET /api/tasks?project=<canonicalProjectID>[&provider=<name>&doug_only=true]
+//	GET /api/tasks?project=<canonicalProjectID>[&provider=<name>&doug_only=true&sort=cost]
 //	  → [{"taskID":"...","providerCoverage":["claude"],"sessionCount":1,
 //	      "totalCost":1.23,"unknownPricing":false}, ...]
 //	  Includes a virtual taskID "manual" for ClassManual+ClassUntagged sessions
 //	  unless doug_only=true.
 //
-//	GET /api/sessions?task=<id>[&project=<canonicalProjectID>&provider=<name>&doug_only=true]
+//	GET /api/sessions?task=<id>[&project=<canonicalProjectID>&provider=<name>&doug_only=true&sort=<recent|cost>]
 //	  task="manual" matches ClassManual and ClassUntagged sessions.
 //	  → [{"id":"...","provider":"...","canonicalProjectID":"...",
 //	      "rawProjectPath":"...","taskID":"...","model":"...","class":"...",
@@ -37,6 +37,7 @@
 //	provider=<name>    limit results to the named provider; may repeat for multiple
 //	doug_only=true     exclude ClassManual and ClassUntagged sessions from results
 //	                   and aggregates
+//	sort=...           endpoint-specific sort key; invalid values return 400
 //
 // Error responses use a consistent JSON envelope: {"error":"<message>"}
 package api
@@ -209,12 +210,61 @@ func setToSortedSlice(values map[string]struct{}) []string {
 	return items
 }
 
+const (
+	taskSortCost      = "cost"
+	sessionSortRecent = "recent"
+	sessionSortCost   = "cost"
+)
+
 // parseFilters extracts the provider list and doug_only flag from query params.
 // provider may appear multiple times; doug_only must equal "true" to be active.
 func parseFilters(r *http.Request) (providers []string, dougOnly bool) {
 	providers = r.URL.Query()["provider"]
 	dougOnly = r.URL.Query().Get("doug_only") == "true"
 	return
+}
+
+func parseTaskSort(r *http.Request) (string, error) {
+	sortBy := r.URL.Query().Get("sort")
+	if sortBy == "" {
+		return taskSortCost, nil
+	}
+	if sortBy != taskSortCost {
+		return "", http.ErrNotSupported
+	}
+	return sortBy, nil
+}
+
+func parseSessionSort(r *http.Request) (string, error) {
+	sortBy := r.URL.Query().Get("sort")
+	if sortBy == "" {
+		return sessionSortRecent, nil
+	}
+	switch sortBy {
+	case sessionSortRecent, sessionSortCost:
+		return sortBy, nil
+	default:
+		return "", http.ErrNotSupported
+	}
+}
+
+func compareRecentDesc(a, b time.Time) int {
+	aZero := a.IsZero()
+	bZero := b.IsZero()
+	switch {
+	case aZero && bZero:
+		return 0
+	case aZero:
+		return 1
+	case bZero:
+		return -1
+	case a.After(b):
+		return -1
+	case a.Before(b):
+		return 1
+	default:
+		return 0
+	}
 }
 
 // filterSessions returns the subset of sessions that match the given filters.
@@ -310,6 +360,10 @@ func (h *Handler) handleTasks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "project parameter required")
 		return
 	}
+	if _, err := parseTaskSort(r); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid sort parameter")
+		return
+	}
 	provs, dougOnly := parseFilters(r)
 
 	// Filter to canonical project first, then apply provider/dougOnly filters.
@@ -351,6 +405,15 @@ func (h *Handler) handleTasks(w http.ResponseWriter, r *http.Request) {
 			UnknownPricing:   a.cost.Unknown,
 		})
 	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].TotalCost != items[j].TotalCost {
+			return items[i].TotalCost > items[j].TotalCost
+		}
+		if items[i].SessionCount != items[j].SessionCount {
+			return items[i].SessionCount > items[j].SessionCount
+		}
+		return items[i].TaskID < items[j].TaskID
+	})
 	writeJSON(w, http.StatusOK, items)
 }
 
@@ -358,6 +421,11 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 	taskID := r.URL.Query().Get("task")
 	if taskID == "" {
 		writeError(w, http.StatusBadRequest, "task parameter required")
+		return
+	}
+	sortBy, err := parseSessionSort(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid sort parameter")
 		return
 	}
 	project := r.URL.Query().Get("project") // optional scope
@@ -408,6 +476,25 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 			UnknownPricing:     cost.Unknown,
 		})
 	}
+	sort.Slice(items, func(i, j int) bool {
+		switch sortBy {
+		case sessionSortCost:
+			if items[i].TotalCost != items[j].TotalCost {
+				return items[i].TotalCost > items[j].TotalCost
+			}
+			if cmp := compareRecentDesc(items[i].StartTime, items[j].StartTime); cmp != 0 {
+				return cmp < 0
+			}
+		default:
+			if cmp := compareRecentDesc(items[i].StartTime, items[j].StartTime); cmp != 0 {
+				return cmp < 0
+			}
+			if items[i].TotalCost != items[j].TotalCost {
+				return items[i].TotalCost > items[j].TotalCost
+			}
+		}
+		return items[i].ID < items[j].ID
+	})
 	writeJSON(w, http.StatusOK, items)
 }
 
