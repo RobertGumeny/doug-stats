@@ -1,0 +1,45 @@
+{
+  "sessionId": "aaaaaaaa-1111-2222-3333-444444444444",
+  "projectHash": "hash-alpha",
+  "startTime": "2026-03-06T10:00:00Z",
+  "lastUpdated": "2026-03-06T10:05:00Z",
+  "messages": [
+    {
+      "id": "u-a1",
+      "timestamp": "2026-03-06T10:00:00Z",
+      "type": "user",
+      "content": [{"text": "[DOUG_TASK_ID: EPIC-3-001] Please activate implement-feature"}]
+    },
+    {
+      "id": "g-a1",
+      "timestamp": "2026-03-06T10:00:02Z",
+      "type": "gemini",
+      "content": "Working on it",
+      "thoughts": [{"subject": "thinking", "description": "plan"}],
+      "tokens": {
+        "input": 100,
+        "output": 20,
+        "cached": 30,
+        "thoughts": 7,
+        "tool": 5,
+        "total": 162
+      },
+      "model": "gemini-3-flash-preview",
+      "toolCalls": [
+        {
+          "id": "call-1",
+          "name": "read_file",
+          "args": {"file_path": "/tmp/a"},
+          "result": [{"ok": true}]
+        }
+      ]
+    },
+    {
+      "id": "g-a2",
+      "timestamp": "2026-03-06T10:00:05Z",
+      "type": "gemini",
+      "content": "No tokens on this message",
+      "model": "gemini-3-flash-preview"
+    }
+  ]
+}

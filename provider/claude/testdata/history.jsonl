@@ -1,0 +1,5 @@
+{"sessionId":"session-doug","project":"/test/project","timestamp":1000000000000}
+{"sessionId":"session-manual","project":"/test/project","timestamp":1000000001000}
+{"sessionId":"session-untagged","project":"/test/project","timestamp":1000000002000}
+{"sessionId":"session-stream","project":"/test/project","timestamp":1000000003000}
+{"sessionId":"session-doug","project":"/test/project","timestamp":1000000004000}

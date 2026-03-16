@@ -1,0 +1,2 @@
+{"type":"user","uuid":"u1","parentUuid":null,"isSidechain":false,"timestamp":"2023-01-01T00:00:00Z","message":{"role":"user","content":"[DOUG_TASK_ID: EPIC-2-001] Please activate implement-feature"}}
+{"type":"assistant","uuid":"a1","parentUuid":"u1","isSidechain":false,"timestamp":"2023-01-01T00:00:01Z","message":{"model":"claude-sonnet-4-6","id":"msg-001","stop_reason":"end_turn","content":[],"usage":{"input_tokens":10,"cache_creation_input_tokens":20,"cache_read_input_tokens":30,"output_tokens":40}}}
