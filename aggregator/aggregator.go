@@ -16,23 +16,27 @@ type MessageCost struct {
 
 // SessionAggregate holds the computed cost for a single session.
 type SessionAggregate struct {
-	SessionID   string
-	ProjectPath string
-	TaskID      string
-	Model       string
-	TotalCost   pricing.Cost
+	SessionID          string
+	ProjectPath        string
+	CanonicalProjectID string
+	TaskID             string
+	Model              string
+	TotalCost          pricing.Cost
 }
 
 // TaskAggregate holds the computed cost across all sessions for a task.
 type TaskAggregate struct {
-	TaskID    string
-	TotalCost pricing.Cost
+	CanonicalProjectID string
+	TaskID             string
+	SessionCount       int
+	TotalCost          pricing.Cost
 }
 
 // ProjectAggregate holds the computed cost across all sessions for a project.
 type ProjectAggregate struct {
-	ProjectPath string
-	TotalCost   pricing.Cost
+	CanonicalProjectID string
+	SessionCount       int
+	TotalCost          pricing.Cost
 }
 
 // Summary is the result of Phase 1 cost aggregation. It is safe to read
@@ -49,8 +53,21 @@ type Summary struct {
 // Aggregate computes session, task, and project cost totals from Phase 1
 // session metadata. The HTTP server must not start until this call returns.
 func Aggregate(sessions []*provider.SessionMeta) *Summary {
-	taskTotals := make(map[string]pricing.Cost)
-	projectTotals := make(map[string]pricing.Cost)
+	type taskKey struct {
+		canonicalProjectID string
+		taskID             string
+	}
+	type taskAcc struct {
+		sessionCount int
+		totalCost    pricing.Cost
+	}
+	type projectAcc struct {
+		sessionCount int
+		totalCost    pricing.Cost
+	}
+
+	taskTotals := make(map[taskKey]*taskAcc)
+	projectTotals := make(map[string]*projectAcc)
 
 	summary := &Summary{
 		CacheTierMinutes: pricing.CacheTierMinutes,
@@ -59,35 +76,63 @@ func Aggregate(sessions []*provider.SessionMeta) *Summary {
 
 	for _, s := range sessions {
 		cost := pricing.Compute(s.Model, s.Tokens)
-		summary.Sessions = append(summary.Sessions, SessionAggregate{
-			SessionID:   s.ID,
-			ProjectPath: s.ProjectPath,
-			TaskID:      s.TaskID,
-			Model:       s.Model,
-			TotalCost:   cost,
-		})
-
-		if s.TaskID != "" {
-			taskTotals[s.TaskID] = taskTotals[s.TaskID].Add(cost)
+		canonicalProjectID := s.CanonicalProjectID
+		if canonicalProjectID == "" {
+			canonicalProjectID = s.ProjectPath
 		}
-		projectTotals[s.ProjectPath] = projectTotals[s.ProjectPath].Add(cost)
+		summary.Sessions = append(summary.Sessions, SessionAggregate{
+			SessionID:          s.ID,
+			ProjectPath:        s.ProjectPath,
+			CanonicalProjectID: canonicalProjectID,
+			TaskID:             s.TaskID,
+			Model:              s.Model,
+			TotalCost:          cost,
+		})
+
+		taskID := aggregatedTaskID(s)
+		if taskID != "" {
+			key := taskKey{canonicalProjectID: canonicalProjectID, taskID: taskID}
+			if taskTotals[key] == nil {
+				taskTotals[key] = &taskAcc{}
+			}
+			taskTotals[key].sessionCount++
+			taskTotals[key].totalCost = taskTotals[key].totalCost.Add(cost)
+		}
+		if projectTotals[canonicalProjectID] == nil {
+			projectTotals[canonicalProjectID] = &projectAcc{}
+		}
+		projectTotals[canonicalProjectID].sessionCount++
+		projectTotals[canonicalProjectID].totalCost = projectTotals[canonicalProjectID].totalCost.Add(cost)
 	}
 
-	for taskID, cost := range taskTotals {
+	for key, acc := range taskTotals {
 		summary.Tasks = append(summary.Tasks, TaskAggregate{
-			TaskID:    taskID,
-			TotalCost: cost,
+			CanonicalProjectID: key.canonicalProjectID,
+			TaskID:             key.taskID,
+			SessionCount:       acc.sessionCount,
+			TotalCost:          acc.totalCost,
 		})
 	}
 
-	for path, cost := range projectTotals {
+	for canonicalProjectID, acc := range projectTotals {
 		summary.Projects = append(summary.Projects, ProjectAggregate{
-			ProjectPath: path,
-			TotalCost:   cost,
+			CanonicalProjectID: canonicalProjectID,
+			SessionCount:       acc.sessionCount,
+			TotalCost:          acc.totalCost,
 		})
 	}
 
 	return summary
+}
+
+func aggregatedTaskID(s *provider.SessionMeta) string {
+	if s.TaskID != "" {
+		return s.TaskID
+	}
+	if s.Class == provider.ClassManual || s.Class == provider.ClassUntagged {
+		return "manual"
+	}
+	return ""
 }
 
 // ComputeMessageCosts returns per-message costs for a transcript.
