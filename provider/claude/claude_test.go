@@ -284,3 +284,47 @@ func TestLoadTranscript_NotInIndex(t *testing.T) {
 		t.Fatal("expected error for unknown session, got nil")
 	}
 }
+
+// --- canonical identity fields ---
+
+func TestLoadSessions_CanonicalIdentityFields(t *testing.T) {
+	p := New(testdataDir())
+	metas, err := p.LoadSessions()
+	if err != nil {
+		t.Fatalf("LoadSessions failed: %v", err)
+	}
+	for _, m := range metas {
+		if m.RawProjectPath == "" {
+			t.Errorf("session %s: RawProjectPath is empty", m.ID)
+		}
+		if m.CanonicalProjectID == "" {
+			t.Errorf("session %s: CanonicalProjectID is empty", m.ID)
+		}
+		if m.CanonicalProjectSource == "" {
+			t.Errorf("session %s: CanonicalProjectSource is empty", m.ID)
+		}
+		// Raw path must not be overwritten.
+		if m.RawProjectPath != m.ProjectPath {
+			t.Errorf("session %s: RawProjectPath %q != ProjectPath %q", m.ID, m.RawProjectPath, m.ProjectPath)
+		}
+	}
+}
+
+func TestLoadSessions_CanonicalID_AbsolutePath(t *testing.T) {
+	// All testdata sessions use /test/project — an absolute path — so the
+	// resolver should produce SourceNormalizedPath.
+	p := New(testdataDir())
+	metas, err := p.LoadSessions()
+	if err != nil {
+		t.Fatalf("LoadSessions failed: %v", err)
+	}
+	for _, m := range metas {
+		if m.CanonicalProjectSource != provider.SourceNormalizedPath {
+			t.Errorf("session %s: CanonicalProjectSource = %q, want %q",
+				m.ID, m.CanonicalProjectSource, provider.SourceNormalizedPath)
+		}
+		if m.CanonicalProjectID != "/test/project" {
+			t.Errorf("session %s: CanonicalProjectID = %q, want /test/project", m.ID, m.CanonicalProjectID)
+		}
+	}
+}

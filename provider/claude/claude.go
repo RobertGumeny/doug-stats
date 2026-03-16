@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/robertgumeny/doug-stats/provider"
+	"github.com/robertgumeny/doug-stats/provider/resolver"
 )
 
 const providerName = "claude"
@@ -263,15 +264,20 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath string, startTime ti
 		}
 	}
 
+	res := resolver.Resolve(resolver.Input{RawPath: projectPath})
 	return &provider.SessionMeta{
-		ID:          sessionID,
-		Provider:    providerName,
-		ProjectPath: projectPath,
-		TaskID:      taskID,
-		Model:       model,
-		Class:       class,
-		StartTime:   startTime,
-		Tokens:      totals,
+		ID:                     sessionID,
+		Provider:               providerName,
+		ProjectPath:            projectPath,
+		TaskID:                 taskID,
+		Model:                  model,
+		Class:                  class,
+		StartTime:              startTime,
+		Tokens:                 totals,
+		RawProjectPath:         projectPath,
+		CanonicalProjectID:     res.CanonicalProjectID,
+		CanonicalProjectSource: res.CanonicalProjectSource,
+		DisplayProjectName:     res.DisplayProjectName,
 	}, nil
 }
 

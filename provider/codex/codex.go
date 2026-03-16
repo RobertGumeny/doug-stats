@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/robertgumeny/doug-stats/provider"
+	"github.com/robertgumeny/doug-stats/provider/resolver"
 )
 
 const providerName = "codex"
@@ -83,6 +84,15 @@ func (p *Provider) LoadSessions() ([]*provider.SessionMeta, error) {
 			projectPath = parsedProjectPath
 			meta.ProjectPath = parsedProjectPath
 		}
+
+		res := resolver.Resolve(resolver.Input{
+			GitRemoteURL: th.GitOriginURL,
+			RawPath:      th.CWD,
+		})
+		meta.RawProjectPath = meta.ProjectPath
+		meta.CanonicalProjectID = res.CanonicalProjectID
+		meta.CanonicalProjectSource = res.CanonicalProjectSource
+		meta.DisplayProjectName = res.DisplayProjectName
 
 		p.sessions[th.ID] = &sessionIndex{projectPath: projectPath, rolloutPath: rolloutPath}
 		metas = append(metas, meta)
