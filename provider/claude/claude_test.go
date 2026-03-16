@@ -201,6 +201,21 @@ func TestMalformedLinesSkipped(t *testing.T) {
 	}
 }
 
+func TestScanSessionPhase1_ComputesDurationFromKnownTimestamps(t *testing.T) {
+	p := New(testdataDir())
+	filePath := filepath.Join(testdataDir(), "projects", "-test-project", "session-stream.jsonl")
+	meta, err := p.scanSessionPhase1("session-stream", "/test/project", time.Time{}, filePath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if meta.DurationMs == nil {
+		t.Fatal("expected duration to be computed")
+	}
+	if *meta.DurationMs != 2000 {
+		t.Fatalf("duration_ms = %d, want 2000", *meta.DurationMs)
+	}
+}
+
 // --- LoadSessions integration ---
 
 func TestLoadSessions_DiscoversByHistoryJSONL(t *testing.T) {

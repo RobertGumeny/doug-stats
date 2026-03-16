@@ -51,7 +51,7 @@ import (
 // It is safe for concurrent use once constructed.
 type Handler struct {
 	sessions  []*provider.SessionMeta
-	costs     map[string]pricing.Cost    // session ID → cost
+	costs     map[string]pricing.Cost      // session ID → cost
 	providers map[string]provider.Provider // provider name → Provider
 }
 
@@ -78,6 +78,7 @@ type SessionItem struct {
 	Model       string    `json:"model"`
 	Class       string    `json:"class"`
 	StartTime   time.Time `json:"start_time"`
+	DurationMs  *int64    `json:"duration_ms,omitempty"`
 	CostUSD     float64   `json:"cost_usd"`
 	Unknown     bool      `json:"unknown"`
 }
@@ -309,6 +310,7 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 			Model:       s.Model,
 			Class:       classString(s.Class),
 			StartTime:   s.StartTime,
+			DurationMs:  s.DurationMs,
 			CostUSD:     cost.USD,
 			Unknown:     cost.Unknown,
 		})

@@ -36,7 +36,7 @@ Presentation:
 - Rows sorted by descending cost
 - Manual/untagged usage shown in a dedicated section
 - Cost badge renders `?` when `unknown=true`, else `$<fixed 4dp>`
-- Session rows include provider, class, model, start time, and derived duration (when timestamps are available)
+- Session rows include provider, class, model, start time, and precomputed duration (when timestamps are available)
 - Transcript turns are displayed chronologically with distinct user/assistant styles
 - `tool_use` and `tool_result` blocks are collapsed by default with per-block expand toggles
 - Assistant turns show inline per-turn cost plus a cache-tier pricing note

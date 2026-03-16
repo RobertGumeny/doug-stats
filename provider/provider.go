@@ -28,9 +28,9 @@ type TokenCounts struct {
 type CanonicalProjectSource string
 
 const (
-	SourceDoug           CanonicalProjectSource = "doug"
-	SourceGitRemote      CanonicalProjectSource = "git-remote"
-	SourceNormalizedPath CanonicalProjectSource = "normalized-path"
+	SourceDoug             CanonicalProjectSource = "doug"
+	SourceGitRemote        CanonicalProjectSource = "git-remote"
+	SourceNormalizedPath   CanonicalProjectSource = "normalized-path"
 	SourceBasenameFallback CanonicalProjectSource = "basename-fallback"
 )
 
@@ -43,6 +43,7 @@ type SessionMeta struct {
 	Model       string // last model identifier seen in assistant messages; empty if none
 	Class       SessionClass
 	StartTime   time.Time
+	DurationMs  *int64
 	Tokens      TokenCounts
 
 	// Canonical identity fields (populated by the project resolver).
@@ -75,6 +76,16 @@ type Message struct {
 type Transcript struct {
 	SessionID string
 	Messages  []Message
+}
+
+// DurationMillis returns the elapsed time between the earliest and latest
+// non-zero timestamps. It returns nil when a duration cannot be derived.
+func DurationMillis(start, end time.Time) *int64 {
+	if start.IsZero() || end.IsZero() || !end.After(start) {
+		return nil
+	}
+	durationMs := end.Sub(start).Milliseconds()
+	return &durationMs
 }
 
 // Provider is the interface all AI log providers must implement.

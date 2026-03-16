@@ -121,6 +121,7 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath, rolloutPath string)
 		hasUser            bool
 		parsedProjectPath  string
 		startTime          time.Time
+		endTime            time.Time
 		lastAssistantTurnN = -1
 	)
 
@@ -142,6 +143,14 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath, rolloutPath string)
 
 		if startTime.IsZero() {
 			startTime = parseTime(rl.Timestamp)
+		}
+		if ts := parseTime(rl.Timestamp); !ts.IsZero() {
+			if startTime.IsZero() || ts.Before(startTime) {
+				startTime = ts
+			}
+			if endTime.IsZero() || ts.After(endTime) {
+				endTime = ts
+			}
 		}
 
 		switch strings.ToLower(strings.TrimSpace(rl.Type)) {
@@ -209,6 +218,7 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath, rolloutPath string)
 		Model:       model,
 		Class:       class,
 		StartTime:   startTime,
+		DurationMs:  provider.DurationMillis(startTime, endTime),
 		Tokens:      totals,
 	}
 	return meta, parsedProjectPath, nil

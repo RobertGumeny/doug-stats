@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Compute and store session duration during Phase 1 ingestion, and expose it as duration_ms in /api/sessions responses.
 - Updated the aggregator to group projects by CanonicalProjectID and tasks by CanonicalProjectID+TaskID, including project-scoped manual buckets and regression coverage for cross-provider merges.
 - Add Doug metadata parser that reads DOUG_PROJECT_ID and DOUG_PROJECT_NAME from the managed block in AGENTS.md and feeds them into the project resolver as the highest-priority identity source.
 - Wire resolver into Claude, Gemini, and Codex adapters; populate canonical identity fields on every SessionMeta

@@ -96,6 +96,30 @@ func TestTokenParsing_AllGeminiFields(t *testing.T) {
 	}
 }
 
+func TestLoadSessions_ComputesDurationFromKnownTimestamps(t *testing.T) {
+	p := New(testdataDir())
+	metas, err := p.LoadSessions()
+	if err != nil {
+		t.Fatalf("LoadSessions failed: %v", err)
+	}
+	var got *provider.SessionMeta
+	for _, m := range metas {
+		if m.ID == "aaaaaaaa-1111-2222-3333-444444444444" {
+			got = m
+			break
+		}
+	}
+	if got == nil {
+		t.Fatal("target session not found")
+	}
+	if got.DurationMs == nil {
+		t.Fatal("expected duration to be computed")
+	}
+	if *got.DurationMs != 5000 {
+		t.Fatalf("duration_ms = %d, want 5000", *got.DurationMs)
+	}
+}
+
 func TestLoadTranscript_ParsesAssistantTurnsAndToolParts(t *testing.T) {
 	p := New(testdataDir())
 	if _, err := p.LoadSessions(); err != nil {

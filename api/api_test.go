@@ -322,8 +322,19 @@ func TestSessions_MissingTask(t *testing.T) {
 }
 
 func TestSessions_ByTaskID(t *testing.T) {
+	durationMs := int64(2000)
 	sessions := []*provider.SessionMeta{
-		newSession("s1", "claude", "/proj/a", "T1", provider.ClassDoug),
+		{
+			ID:          "s1",
+			Provider:    "claude",
+			ProjectPath: "/proj/a",
+			TaskID:      "T1",
+			Model:       "claude-sonnet-4-6",
+			Class:       provider.ClassDoug,
+			StartTime:   time.Time{},
+			DurationMs:  &durationMs,
+			Tokens:      provider.TokenCounts{Output: 1_000_000},
+		},
 		newSession("s2", "claude", "/proj/a", "T2", provider.ClassDoug),
 	}
 	h := buildHandler(sessions, nil)
@@ -332,6 +343,9 @@ func TestSessions_ByTaskID(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &items)
 	if len(items) != 1 || items[0].ID != "s1" {
 		t.Errorf("want [s1], got %v", items)
+	}
+	if items[0].DurationMs == nil || *items[0].DurationMs != 2000 {
+		t.Fatalf("duration_ms = %v, want 2000", items[0].DurationMs)
 	}
 }
 

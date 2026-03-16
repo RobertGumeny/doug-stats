@@ -105,6 +105,32 @@ func TestLoadSessions_ProjectAndClassificationAndTokens(t *testing.T) {
 	}
 }
 
+func TestLoadSessions_ComputesDurationFromKnownTimestamps(t *testing.T) {
+	root := setupCodexFixture(t)
+	p := New(root)
+
+	metas, err := p.LoadSessions()
+	if err != nil {
+		t.Fatalf("LoadSessions failed: %v", err)
+	}
+
+	byID := map[string]*provider.SessionMeta{}
+	for _, m := range metas {
+		byID[m.ID] = m
+	}
+
+	doug := byID["thread-doug"]
+	if doug == nil {
+		t.Fatal("thread-doug missing")
+	}
+	if doug.DurationMs == nil {
+		t.Fatal("expected duration to be computed")
+	}
+	if *doug.DurationMs != 6000 {
+		t.Fatalf("duration_ms = %d, want 6000", *doug.DurationMs)
+	}
+}
+
 func TestLoadTranscript_TurnContextAndTokenCorrelation(t *testing.T) {
 	root := setupCodexFixture(t)
 	p := New(root)

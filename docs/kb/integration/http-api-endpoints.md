@@ -31,7 +31,7 @@ Behavior highlights:
 - `task=manual` is a virtual task that matches manual and untagged sessions.
 - `/api/tasks` appends a virtual `"manual"` entry when non-Doug sessions exist in the selected project (unless `doug_only=true`).
 - Errors use a stable envelope: `{"error":"..."}`.
-- Session list responses include `class` and `model` metadata for frontend filtering and labels.
+- Session list responses include `class`, `model`, and precomputed `duration_ms` metadata for frontend filtering and labels.
 - Message responses preserve raw provider content parts while attaching computed per-turn cost fields.
 - Provider filters support all currently integrated providers (`claude`, `gemini`, `codex`) and can be combined.
 

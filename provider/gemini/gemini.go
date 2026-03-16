@@ -236,8 +236,19 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath string, startTime ti
 	taskID := ""
 	model := ""
 	totals := provider.TokenCounts{}
+	endTime := time.Time{}
 
 	for i, msg := range cf.Messages {
+		ts := parseTime(msg.Timestamp)
+		if !ts.IsZero() {
+			if startTime.IsZero() || ts.Before(startTime) {
+				startTime = ts
+			}
+			if endTime.IsZero() || ts.After(endTime) {
+				endTime = ts
+			}
+		}
+
 		switch msg.Type {
 		case "user":
 			hasUser = true
@@ -285,6 +296,7 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath string, startTime ti
 		Model:                  model,
 		Class:                  class,
 		StartTime:              startTime,
+		DurationMs:             provider.DurationMillis(startTime, endTime),
 		Tokens:                 totals,
 		RawProjectPath:         projectPath,
 		CanonicalProjectID:     res.CanonicalProjectID,

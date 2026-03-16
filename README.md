@@ -43,4 +43,3 @@ The following are known gaps in the current implementation:
 
 1. `--no-ui` is a stub and does not run the server without opening UI.
 2. Project identity is provider-specific (`Claude: project path`, `Gemini: .project_root or tmp dir name`, `Codex: git origin repo name or cwd`), so the same repo may appear as separate projects when metadata differs.
-3. Session duration labels are derived by fetching each session transcript from the UI session list, which can add extra latency on large datasets.

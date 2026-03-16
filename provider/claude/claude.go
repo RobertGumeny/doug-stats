@@ -192,6 +192,7 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath string, startTime ti
 		class      = provider.ClassUntagged
 		hasUserMsg bool
 		seenMsgIDs = make(map[string]bool)
+		endTime    time.Time
 	)
 
 	scanner := bufio.NewScanner(f)
@@ -205,6 +206,14 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath string, startTime ti
 		if err := json.Unmarshal([]byte(line), &sl); err != nil {
 			log.Printf("warning: claude: session %s: malformed line: %v", sessionID, err)
 			continue
+		}
+		if ts, err := time.Parse(time.RFC3339Nano, sl.Timestamp); err == nil {
+			if startTime.IsZero() || ts.Before(startTime) {
+				startTime = ts
+			}
+			if endTime.IsZero() || ts.After(endTime) {
+				endTime = ts
+			}
 		}
 
 		switch sl.Type {
@@ -278,6 +287,7 @@ func (p *Provider) scanSessionPhase1(sessionID, projectPath string, startTime ti
 		Model:                  model,
 		Class:                  class,
 		StartTime:              startTime,
+		DurationMs:             provider.DurationMillis(startTime, endTime),
 		Tokens:                 totals,
 		RawProjectPath:         projectPath,
 		CanonicalProjectID:     res.CanonicalProjectID,
