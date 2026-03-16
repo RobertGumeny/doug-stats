@@ -1,5 +1,3 @@
 .doug
 frontend/node_modules
-doug-stats
-
-.doug/
+frontend/dist
