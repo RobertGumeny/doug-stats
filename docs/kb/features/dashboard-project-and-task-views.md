@@ -1,10 +1,11 @@
 ---
 title: Dashboard Navigation and Cost Views
-updated: 2026-03-06
+updated: 2026-03-16
 category: Features
 tags: [react, ui, filters, costs, transcript]
 related_articles:
   - docs/kb/integration/http-api-endpoints.md
+  - docs/kb/architecture/canonical-project-identity.md
   - docs/kb/dependencies/model-pricing-and-aggregation.md
   - docs/kb/features/cli-flags.md
   - docs/kb/patterns/claude-jsonl-provider.md
@@ -24,8 +25,8 @@ The frontend dashboard renders four primary views: Projects, Tasks, Sessions, an
 State-driven UI flow in `frontend/src/App.tsx`:
 - `connecting` view polls `GET /api/health` every second until ready
 - `projects` view loads `/api/projects` with active filters
-- `tasks` view loads `/api/tasks?project=...` with active filters
-- `sessions` view loads `/api/sessions?task=...&project=...`
+- `tasks` view loads `/api/tasks?project=<canonicalProjectID>` with active filters
+- `sessions` view loads `/api/sessions?task=...&project=<canonicalProjectID>`
 - `transcript` view loads `/api/sessions/:id/messages`
 
 Filters:
@@ -36,7 +37,7 @@ Presentation:
 - Rows sorted by descending cost
 - Manual/untagged usage shown in a dedicated section
 - Cost badge renders `?` when `unknown=true`, else `$<fixed 4dp>`
-- Session rows include provider, class, model, start time, and precomputed duration (when timestamps are available)
+- Session rows include provider, class, model, and start time from `/api/sessions`; duration labels are currently backfilled from transcript timestamps
 - Transcript turns are displayed chronologically with distinct user/assistant styles
 - `tool_use` and `tool_result` blocks are collapsed by default with per-block expand toggles
 - Assistant turns show inline per-turn cost plus a cache-tier pricing note
@@ -53,12 +54,14 @@ Presentation:
 
 - If API calls fail, lists are reset to empty arrays rather than stale data.
 - Provider filter options are static; providers without data naturally yield empty results.
-- Session duration is omitted when message timestamps are missing or unparsable.
+- Session duration labels are omitted when transcript message timestamps are missing or unparsable.
+- The current sessions view still fetches `/api/sessions/:id/messages` to derive duration labels even though `/api/sessions` now exposes precomputed `duration`.
 - Transcript ordering is sorted by parsed timestamp with stable index fallback for equal or invalid timestamps.
 
 ## Related Topics
 
 See [CLI Flags & Provider Auto-Detection](./cli-flags.md) for startup provider directory discovery.
 See [In-Memory HTTP API Endpoints](../integration/http-api-endpoints.md) for query/response contracts used by each view.
+See [Canonical Project Identity](../architecture/canonical-project-identity.md) for how project drill-down keys are derived across providers.
 See [Claude JSONL Provider Pattern](../patterns/claude-jsonl-provider.md) for transcript content shapes surfaced in the UI.
 See [Gemini logs.json Provider Pattern](../patterns/gemini-logs-json-provider.md) and [Codex SQLite + Rollout Provider Pattern](../patterns/codex-sqlite-rollout-provider.md) for provider-specific message and token extraction behavior behind the same UI.

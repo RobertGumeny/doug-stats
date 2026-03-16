@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added KB articles documenting build pipeline, CI/CD setup, and CLI/provider-detection behavior.
 
 ### Changed
+- Updated KB articles for the EPIC-5 API contract so docs now describe canonical-project-scoped endpoints, richer aggregate response fields, and precomputed session duration semantics.
 
 ### Fixed
 
